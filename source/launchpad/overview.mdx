@@ -1,0 +1,49 @@
+---
+title: 'Launchpad'
+description: 'Permissionless token launches on a constant-product bonding curve that graduates to the AMM.'
+---
+
+The launchpad lets anyone create a token and have it trade immediately on a bonding curve, no listing, no permission, no presale. When enough CHANSE has been raised on the curve, the token "graduates": its remaining tokens and the raised CHANSE are deposited into the AMM as a real liquidity pool.
+
+## The lifecycle
+
+<Steps>
+  <Step title="Create">
+    A creator calls the launch message. The contract instantiates a standard CW20 token with a **fixed 100,000-token supply** and sets up a bonding curve for it. Opening valuation is ~$1,000.
+  </Step>
+  <Step title="Trade on the curve">
+    Anyone buys and sells against the curve. Price rises as tokens are bought and falls as they are sold, deterministically, there is no order book and no counterparty needed.
+  </Step>
+  <Step title="Graduate">
+    Once cumulative CHANSE raised hits the graduation threshold, the curve closes and the contract seeds an AMM pool with the reserved tokens + the raised CHANSE. Trading continues on the AMM from there.
+  </Step>
+</Steps>
+
+## The bonding curve
+
+It is a **constant-product** curve (the same `x * y = k` shape as Uniswap and pump.fun), run against *virtual* reserves so a brand-new token starts at a sane price instead of zero. Each token's curve stores `virtual_ansem_start`, `virtual_tokens_start`, and the invariant `curve_k = virtual_ansem * virtual_tokens`. A buy adds CHANSE to the reserve and removes the tokens that keep `k` constant; a sell does the reverse. You can read the exact arithmetic in `contract.rs` (`calculate_buy` / `calculate_sell`).
+
+### Where the supply goes
+
+Of the 100,000 tokens minted at launch:
+
+| Allocation | Tokens | Share |
+|---|---|---|
+| Sold on the curve | 79,310 | 79.31% |
+| Reserved for the AMM LP at graduation | 20,690 | 20.69% |
+
+Buying out the curve raises the configured CHANSE target, and that raised CHANSE is what seeds the liquidity pool at graduation. So the CHANSE actually taken out of circulation per launch is the **raise**, not the token's headline market cap.
+
+### Graduation is CHANSE-denominated
+
+A token graduates when its **CHANSE raised** crosses the threshold, not when a USD figure is hit. The threshold is set at deploy time and ratchets (only ever increases) per curve. This is why graduation is unaffected by oracle staleness: it is measured in CHANSE that genuinely flowed in, not in a price estimate.
+
+## Fees and limits
+
+- **Buy/sell fees** are configurable in basis points and hard-capped by the contract (buy ≤ 5%, sell ≤ 10%); a share goes to the token's creator (`creator_fee_share_bps`).
+- A **creation fee** is charged to launch a token.
+- A **max-wallet cap** (`max_wallet_bps`, currently **2.25%** of supply) limits how much any single address can hold, checked on every buy by querying the CW20 balance. Set to 0 to disable.
+
+## Interface
+
+The full set of messages, launch, buy, sell, query curve state, graduate, admin config, lives in `msg.rs`. The handlers that enforce all of the above are in `contract.rs`.

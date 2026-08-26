@@ -1,0 +1,258 @@
+---
+title: 'Chain Parameters'
+description: 'Module parameters configured on ansemchain'
+---
+
+# Chain Parameters
+
+ansemchain modules are configured with specific parameters that govern the blockchain's behavior. These parameters can be modified through governance proposals.
+
+## Staking Parameters
+
+Controls validator operations and delegation.
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `unbonding_time` | 14 days (1,209,600s) | Time to unbond staked tokens |
+| `max_validators` | 100 | Maximum active validators |
+| `max_entries` | 7 | Max unbonding/redelegation entries |
+| `historical_entries` | 10000 | Historical entries for IBC |
+| `bond_denom` | `uchanse` | Token used for staking |
+| `min_commission_rate` | 5% (0.05) | Minimum validator commission |
+
+### Query Staking Params
+
+```bash wrap
+ansemd query staking params --node https://rpc.ansemchain.fun
+```
+
+<Accordion title="Example Output">
+```yaml wrap
+unbonding_time: 1209600s
+max_validators: 100
+max_entries: 7
+historical_entries: 10000
+bond_denom: uchanse
+min_commission_rate: "0.050000000000000000"
+```
+</Accordion>
+
+## Slashing Parameters
+
+Defines penalties for validator misbehavior.
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `signed_blocks_window` | 10,000 | Blocks to track signing |
+| `min_signed_per_window` | 5% (0.05) | Minimum signing required |
+| `downtime_jail_duration` | 10 minutes (600s) | Jail time for downtime |
+| `slash_fraction_double_sign` | 5% (0.05) | Slash for double signing |
+| `slash_fraction_downtime` | 1% (0.01) | Slash for downtime |
+
+### Slashing Scenarios
+
+<CardGroup cols={2}>
+  <Card title="Double Signing" icon="clone">
+    Signing two different blocks at the same height results in:
+    - **5% slash** of staked tokens
+    - **Permanent tombstone** (can't rejoin validator set)
+  </Card>
+  <Card title="Downtime" icon="power-off">
+    Missing more than 95% of blocks in a window results in:
+    - **1% slash** of staked tokens
+    - **10 minute jail** (can unjail after)
+  </Card>
+</CardGroup>
+
+### Query Slashing Params
+
+```bash wrap
+ansemd query slashing params --node https://rpc.ansemchain.fun
+```
+
+## Governance Parameters
+
+Controls proposal and voting mechanics.
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `min_deposit` | 10 CHANSE (10,000,000 uchanse) | Minimum deposit for proposal |
+| `max_deposit_period` | 2 days (172,800s) | Time to reach min deposit |
+| `voting_period` | 2 days (172,800s) | Duration of voting |
+| `quorum` | 33.4% (0.334) | Minimum participation |
+| `threshold` | 50% (0.5) | Yes votes needed to pass |
+| `veto_threshold` | 33.4% (0.334) | NoWithVeto to reject |
+
+### Governance Process
+
+```
+Proposal Created
+       │
+       ▼
+  ┌─────────────────┐
+  │  Deposit Period │  ◀── 2 days to reach 10 CHANSE
+  │    (2 days)     │
+  └────────┬────────┘
+           │ (deposit reached)
+           ▼
+  ┌─────────────────┐
+  │  Voting Period  │  ◀── Validators & delegators vote
+  │    (2 days)     │
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────┐
+  │    Tallying     │
+  └────────┬────────┘
+           │
+     ┌─────┴─────┐
+     ▼           ▼
+  PASSED      REJECTED
+```
+
+### Query Governance Params
+
+```bash wrap
+ansemd query gov params --node https://rpc.ansemchain.fun
+```
+
+## Distribution Parameters
+
+Controls reward distribution.
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `community_tax` | 2% (0.02) | Tax sent to community pool |
+| `withdraw_addr_enabled` | true | Allow custom withdraw address |
+
+### Reward Flow
+
+```
+Transaction Fees
+       │
+       ▼
+┌──────────────────┐
+│   Distribution   │
+│     Module       │
+└────────┬─────────┘
+         │
+    ┌────┴────┐
+    ▼         ▼
+Community   Validators
+  Pool      & Delegators
+  (2%)         (98%)
+```
+
+## Mint Parameters (ZERO INFLATION)
+
+<Warning>
+**Critical:** ansemchain has zero inflation. The mint module is effectively disabled.
+</Warning>
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `mint_denom` | `uchanse` | Denomination to mint |
+| `inflation` | 0 | Current inflation rate |
+| `inflation_min` | 0 | Minimum inflation |
+| `inflation_max` | 0 | Maximum inflation |
+| `inflation_rate_change` | 0 | Inflation change rate |
+| `goal_bonded` | 0 | Target bonded ratio |
+| `blocks_per_year` | 6,311,520 | Expected blocks/year |
+
+### Verify Zero Inflation
+
+```bash wrap
+ansemd query mint inflation --node https://rpc.ansemchain.fun
+```
+
+Expected output:
+```
+0.000000000000000000
+```
+
+<Note>
+All mint parameters are set to zero, ensuring no new tokens are ever created. Validator rewards come entirely from transaction fees.
+</Note>
+
+## Crisis Parameters
+
+Controls the invariant checking mechanism.
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `constant_fee` | 1,000 CHANSE | Fee to trigger invariant check |
+
+The crisis module allows anyone to halt the chain if a critical invariant is violated (e.g., total supply mismatch). The high fee prevents abuse.
+
+## Wasm Parameters
+
+Controls CosmWasm smart contract operations.
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `code_upload_access` | Everybody | Who can upload contracts |
+| `instantiate_default_permission` | Everybody | Who can instantiate |
+| `max_wasm_code_size` | 800 KB | Maximum contract size |
+
+### Query Wasm Params
+
+```bash wrap
+ansemd query wasm params --node https://rpc.ansemchain.fun
+```
+
+<Accordion title="Example Output">
+```yaml wrap
+code_upload_access:
+  permission: Everybody
+  addresses: []
+instantiate_default_permission: Everybody
+```
+</Accordion>
+
+## IBC Parameters
+
+Inter-Blockchain Communication configuration.
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `allowed_clients` | All | Supported IBC clients |
+| `max_expected_time_per_block` | 30s | Block time for timeouts |
+
+### Active IBC Channels
+
+```bash wrap
+# List all channels
+ansemd query ibc channel channels --node https://rpc.ansemchain.fun
+
+# List connections
+ansemd query ibc connection connections --node https://rpc.ansemchain.fun
+```
+
+## Modifying Parameters
+
+Parameters can be modified through governance proposals:
+
+```bash wrap
+# Create parameter change proposal
+ansemd tx gov submit-proposal param-change proposal.json \
+  --from my-key \
+  --chain-id ansem-1
+
+# Example proposal.json
+{
+  "title": "Update Min Commission Rate",
+  "description": "Increase minimum validator commission to 10%",
+  "changes": [
+    {
+      "subspace": "staking",
+      "key": "MinCommissionRate",
+      "value": "0.100000000000000000"
+    }
+  ],
+  "deposit": "10000000uchanse"
+}
+```
+
+<Warning>
+Parameter changes require passing a governance vote. The voting period is 2 days and requires 33.4% quorum.
+</Warning>

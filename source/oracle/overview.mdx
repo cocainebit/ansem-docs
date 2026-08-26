@@ -1,0 +1,20 @@
+---
+title: 'Oracle'
+description: 'On-chain CHANSE/USD price feed used for USD-denominated displays and limits.'
+---
+
+The oracle is a small, single-purpose contract that holds the current **CHANSE/USD price** on-chain so other apps can show USD values. Prices are stored in **micro-USD** (6 decimals), so `$0.0001 = 100`.
+
+## How it works
+
+- Only the configured **relayer address** may post a price, via `UpdatePrice` (it submits both CHANSE/USD and SOL/USD; the SOL price is kept for transparency).
+- Every reading is timestamped. Queries can pass `require_fresh=true`, which **fails if the latest price is older than the configured max age** (default 30 seconds). This is how consumers avoid trading on a stale number.
+- The admin can rotate the relayer address.
+
+## Important: the oracle does not gate graduation
+
+USD figures from the oracle are for **display and soft limits only**. Launchpad graduation is measured in **CHANSE actually raised**, not USD, so a stale or missing oracle reading never blocks a token from graduating. See the [Launchpad overview](/source/launchpad/overview).
+
+## Interface
+
+`UpdatePrice`, the freshness-aware queries, and admin messages are all in `msg.rs`.

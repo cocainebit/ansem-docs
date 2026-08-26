@@ -1,0 +1,61 @@
+---
+title: 'Configuration'
+description: 'Point the ansem CLI at endpoints and feed it credentials'
+---
+
+# Configuration
+
+The CLI works with **zero configuration** out of the box - it targets the live network (`https://rpc.ansemchain.fun` / `https://rest.ansemchain.fun`). Everything below is optional, controlled entirely through environment variables.
+
+## Environment variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ANSEM_RPC` | Chain RPC endpoint | `https://rpc.ansemchain.fun` |
+| `ANSEM_REST` | REST endpoint | `https://rest.ansemchain.fun` |
+| `ANSEM_CHAIN_ID` | Chain id | `ansem-1` |
+| `ANSEM_PASSWORD` | Keystore password (non-interactive) | - |
+| `ANSEM_MNEMONIC` | Mnemonic for `keys import` (non-interactive) | - |
+| `ANSEM_SOLANA_RPC` | Solana RPC (for bridging) | public mainnet RPC |
+
+### Point at a different endpoint
+
+```bash wrap
+export ANSEM_RPC=https://rpc.ansemchain.fun
+export ANSEM_REST=https://rest.ansemchain.fun
+ansem status
+```
+
+Or inline for a single command:
+
+```bash wrap
+ANSEM_RPC=http://localhost:26657 ansem status
+```
+
+## Scripting (non-interactive)
+
+Commands that touch a wallet normally prompt for a password. For automation, supply it through the environment instead so nothing blocks on a prompt:
+
+```bash wrap
+ANSEM_PASSWORD='…' ansem send --to ansem1… --amount 5 --from main --json
+```
+
+`keys import` can likewise take the mnemonic from `ANSEM_MNEMONIC`:
+
+```bash wrap
+ANSEM_MNEMONIC='word1 word2 …' ANSEM_PASSWORD='…' ansem keys import main
+```
+
+<Warning>
+Passing secrets via environment variables can leak them into shell history and process listings. Prefer the interactive prompts for day-to-day use; reserve the env vars for controlled, ephemeral automation.
+</Warning>
+
+## Where data lives
+
+Wallets are stored as encrypted JSON keystores (scrypt + AES-256-GCM) under:
+
+```
+~/.ansem/keystore/
+```
+
+Your password never leaves your machine and is never written to disk.

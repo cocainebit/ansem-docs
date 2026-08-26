@@ -1,0 +1,417 @@
+---
+title: 'Chain RPC'
+description: 'Low-level blockchain access via Chain RPC'
+---
+
+# Chain RPC
+
+The Chain RPC provides direct access to the blockchain consensus layer.
+
+## Endpoint
+
+```
+https://rpc.ansemchain.fun
+wss://rpc.ansemchain.fun/websocket
+```
+
+## Status & Info
+
+### Node Status
+
+Get current node status including sync info:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/status
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "id": -1,
+  "result": {
+    "node_info": {
+      "protocol_version": {"p2p": "8", "block": "11", "app": "0"},
+      "id": "abc123...",
+      "network": "ansem-localnet",
+      "version": "0.38.0",
+      "moniker": "localnet-node"
+    },
+    "sync_info": {
+      "latest_block_hash": "ABC123...",
+      "latest_block_height": "12345",
+      "latest_block_time": "2024-01-29T10:00:00.000Z",
+      "catching_up": false
+    },
+    "validator_info": {
+      "address": "DEF456...",
+      "pub_key": {"type": "tendermint/PubKeyEd25519", "value": "..."},
+      "voting_power": "1000000"
+    }
+  }
+}
+```
+</Accordion>
+
+### Health Check
+
+Simple health endpoint:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/health
+```
+
+Response:
+```json wrap
+{"jsonrpc": "2.0", "id": -1, "result": {}}
+```
+
+### Net Info
+
+Network and peer information:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/net_info
+```
+
+## Blocks
+
+### Get Block
+
+Get block by height:
+
+```bash wrap
+curl 'https://rpc.ansemchain.fun/block?height=1000'
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "id": -1,
+  "result": {
+    "block_id": {
+      "hash": "ABC123...",
+      "parts": {"total": 1, "hash": "DEF456..."}
+    },
+    "block": {
+      "header": {
+        "chain_id": "ansem-localnet",
+        "height": "1000",
+        "time": "2024-01-29T10:00:00.000Z"
+      },
+      "data": {
+        "txs": ["base64-encoded-tx-1", "base64-encoded-tx-2"]
+      },
+      "last_commit": {...}
+    }
+  }
+}
+```
+</Accordion>
+
+### Latest Block
+
+Get the most recent block:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/block
+```
+
+### Block Results
+
+Get block results (execution outcomes):
+
+```bash wrap
+curl 'https://rpc.ansemchain.fun/block_results?height=1000'
+```
+
+### Blockchain Range
+
+Get blocks in a range:
+
+```bash wrap
+curl 'https://rpc.ansemchain.fun/blockchain?minHeight=1000&maxHeight=1010'
+```
+
+## Transactions
+
+### Broadcast Transaction (Sync)
+
+Submit and wait for CheckTx:
+
+```bash wrap
+curl -X POST 'https://rpc.ansemchain.fun/broadcast_tx_sync' \
+  -d '{"tx": "base64-encoded-signed-tx"}'
+```
+
+Response:
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "id": -1,
+  "result": {
+    "code": 0,
+    "data": "",
+    "log": "",
+    "hash": "ABC123..."
+  }
+}
+```
+
+### Broadcast Transaction (Async)
+
+Submit without waiting:
+
+```bash wrap
+curl -X POST 'https://rpc.ansemchain.fun/broadcast_tx_async' \
+  -d '{"tx": "base64-encoded-signed-tx"}'
+```
+
+### Broadcast Transaction (Commit)
+
+Submit and wait for block inclusion:
+
+```bash wrap
+curl -X POST 'https://rpc.ansemchain.fun/broadcast_tx_commit' \
+  -d '{"tx": "base64-encoded-signed-tx"}'
+```
+
+<Note>
+`broadcast_tx_commit` waits for the transaction to be included in a block. Use `broadcast_tx_sync` for better performance in production.
+</Note>
+
+### Query Transaction
+
+Get transaction by hash:
+
+```bash wrap
+curl 'https://rpc.ansemchain.fun/tx?hash=0xABC123...'
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "id": -1,
+  "result": {
+    "hash": "ABC123...",
+    "height": "12345",
+    "index": 0,
+    "tx_result": {
+      "code": 0,
+      "data": "...",
+      "log": "[{\"events\":[...]}]",
+      "gas_wanted": "200000",
+      "gas_used": "150000"
+    },
+    "tx": "base64-encoded-tx"
+  }
+}
+```
+</Accordion>
+
+### Search Transactions
+
+Search by events:
+
+```bash wrap
+# Find all transfers to an address
+curl 'https://rpc.ansemchain.fun/tx_search?query="transfer.recipient='"'"'ansem1recipient...'"'"'"'
+```
+
+```bash wrap
+# Find contract executions
+curl 'https://rpc.ansemchain.fun/tx_search?query="wasm.action='"'"'execute'"'"'"'
+```
+
+## ABCI Queries
+
+### Direct Query
+
+Query application state:
+
+```bash wrap
+curl 'https://rpc.ansemchain.fun/abci_query?path="/store/bank/key"&data=0x...'
+```
+
+### Smart Contract Query
+
+Query a CosmWasm contract:
+
+```bash wrap
+# Base64 encode the query message
+QUERY=$(echo -n '{"get_count":{}}' | base64)
+CONTRACT="ansem1contract..."
+
+curl "https://rpc.ansemchain.fun/abci_query?path=\"/cosmwasm.wasm.v1.Query/SmartContractState\"&data=..."
+```
+
+<Note>
+For smart contract queries, the REST API is much simpler to use.
+</Note>
+
+## Consensus
+
+### Consensus State
+
+Current consensus state:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/consensus_state
+```
+
+### Dump Consensus State
+
+Detailed consensus debugging:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/dump_consensus_state
+```
+
+### Validators
+
+Get validator set at height:
+
+```bash wrap
+curl 'https://rpc.ansemchain.fun/validators?height=1000'
+```
+
+## Genesis
+
+### Get Genesis
+
+Retrieve chain genesis:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/genesis
+```
+
+For large genesis files:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/genesis_chunked?chunk=0
+```
+
+## WebSocket Subscriptions
+
+Connect to WebSocket for real-time events:
+
+```
+wss://rpc.ansemchain.fun/websocket
+```
+
+### Subscribe to New Blocks
+
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "method": "subscribe",
+  "params": ["tm.event='NewBlock'"],
+  "id": 1
+}
+```
+
+### Subscribe to Transactions
+
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "method": "subscribe",
+  "params": ["tm.event='Tx'"],
+  "id": 2
+}
+```
+
+### Subscribe to Specific Events
+
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "method": "subscribe",
+  "params": ["tm.event='Tx' AND transfer.recipient='ansem1recipient...'"],
+  "id": 3
+}
+```
+
+### Unsubscribe
+
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "method": "unsubscribe",
+  "params": ["tm.event='NewBlock'"],
+  "id": 4
+}
+```
+
+### JavaScript Example
+
+```javascript wrap
+const ws = new WebSocket('wss://rpc.ansemchain.fun/websocket');
+
+ws.onopen = () => {
+  // Subscribe to new blocks
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'subscribe',
+    params: ["tm.event='NewBlock'"],
+    id: 1
+  }));
+
+  // Subscribe to contract events
+  ws.send(JSON.stringify({
+    jsonrpc: '2.0',
+    method: 'subscribe',
+    params: ["tm.event='Tx' AND wasm.contract_address='ansem1contract...'"],
+    id: 2
+  }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.result?.data?.type === 'tendermint/event/NewBlock') {
+    console.log('New block:', data.result.data.value.block.header.height);
+  } else if (data.result?.data?.type === 'tendermint/event/Tx') {
+    console.log('Transaction:', data.result.data.value.TxResult);
+  }
+};
+```
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| -32700 | Parse error |
+| -32600 | Invalid request |
+| -32601 | Method not found |
+| -32602 | Invalid params |
+| -32603 | Internal error |
+
+## Best Practices
+
+1. **Use sync broadcast** - `broadcast_tx_sync` for production
+2. **Poll for confirmation** - Don't rely on `broadcast_tx_commit`
+3. **Handle WebSocket reconnects** - Connections can drop
+4. **Paginate large queries** - Use `page` and `per_page` params
+5. **Cache genesis** - It doesn't change
+
+## Full Endpoint Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/status` | GET | Node status |
+| `/health` | GET | Health check |
+| `/net_info` | GET | Network info |
+| `/block` | GET | Get block |
+| `/block_results` | GET | Block execution results |
+| `/blockchain` | GET | Block range |
+| `/tx` | GET | Transaction by hash |
+| `/tx_search` | GET | Search transactions |
+| `/broadcast_tx_sync` | POST | Submit tx (sync) |
+| `/broadcast_tx_async` | POST | Submit tx (async) |
+| `/broadcast_tx_commit` | POST | Submit tx (commit) |
+| `/abci_query` | GET | Query app state |
+| `/validators` | GET | Validator set |
+| `/genesis` | GET | Chain genesis |
+| `/consensus_state` | GET | Consensus state |

@@ -1,0 +1,123 @@
+---
+title: 'Bridge FAQ'
+description: 'Frequently asked questions about the multi-asset Ansem Bridge'
+---
+
+# Bridge FAQ
+
+<AccordionGroup>
+
+<Accordion title="Which assets can I bridge?">
+The bridge is multi-asset. Today you can bridge:
+
+| Asset | ansemchain denom | Solana SPL mint |
+|-------|------------------|-----------------|
+| **CHANSE** | `uchanse` | Configured at deploy (priority asset, `assets[0]`) |
+| **ANSEM** | `uansem` | `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump` |
+
+Each asset has its own pool vault on Solana and its own limits. More assets can be added over time through governance (each is one `BridgeAsset` entry in the `x/bridge` params). CHANSE is the priority asset: a bridge message with an empty denom resolves to CHANSE.
+</Accordion>
+
+<Accordion title="How long does a bridge transfer take?">
+Both deposits and auto-approved withdrawals typically complete within **30 seconds**:
+
+- **Deposit**: ~5s Solana confirmation + ~15s finality wait + ~10s relayer processing
+- **Withdrawal**: ~6s ansemchain block + ~10s relayer detection + ~5s Solana execution
+
+A withdrawal above the asset's `admin_approval_threshold` also waits for an admin approval before the relayer proceeds.
+</Accordion>
+
+<Accordion title="Why did my large withdrawal need approval?">
+Each asset has an `admin_approval_threshold`. Any withdrawal **above** that amount is placed in `pending_approval` and needs an admin `ApproveBurn` before the relayer releases funds on Solana. This is a safety control on unusually large outflows -- it is not a fee and not a rejection. Once approved, the withdrawal completes normally. Amounts **at or below** the threshold process automatically. To avoid the wait, keep each withdrawal at or below the threshold, or split it into smaller ones.
+</Accordion>
+
+<Accordion title="My deposit hasn't appeared on ansemchain. What should I do?">
+Wait at least 2 minutes. The relayer waits for Solana finality before minting. If your tokens still haven't appeared:
+
+1. Verify your Solana transaction was confirmed (check your wallet or a Solana explorer)
+2. Confirm you selected the right asset -- a CHANSE deposit mints `uchanse`, an ANSEM deposit mints `uansem`
+3. Confirm your ansemchain address was registered before depositing
+4. Check the correct ansemchain address -- the bridge mints to the address linked during registration
+
+If the issue persists, contact support in the [Discord community](https://discord.gg/ansem).
+</Accordion>
+
+<Accordion title="My withdrawal is stuck. What should I do?">
+Withdrawals can take up to 30 seconds (longer if above the approval threshold). If your tokens haven't arrived on Solana:
+
+1. Confirm the withdrawal transaction was successful on ansemchain (check the Explorer)
+2. Check whether it shows **pending admin approval** -- large withdrawals wait for an admin `ApproveBurn`
+3. Verify the Solana address you entered is correct
+4. Wait a few minutes -- the relayer serializes withdrawals and may be processing a queue
+
+Your coins are **escrowed**, not burned, until the Solana release confirms. If the release fails, the relayer marks it `failed` and your escrowed coins are refunded to you on ansemchain.
+</Accordion>
+
+<Accordion title="Do I register separately for each asset?">
+No. Registration links your Solana wallet to one ansemchain address and is a **one-time step per wallet**, shared across all assets. Once linked, every asset you deposit from that wallet routes to the same ansemchain address.
+</Accordion>
+
+<Accordion title="Can I change my registered ansemchain address?">
+No. Each Solana wallet can only be linked to **one ansemchain address**, enforced by the on-chain `UserAccount` PDA. If you need to bridge to a different ansemchain address, use a different Solana wallet.
+</Accordion>
+
+<Accordion title="Is there a maximum transfer amount?">
+Yes, and it is **per asset**:
+
+- **Deposits**: capped by that asset's `max_mint_per_tx`
+- **Withdrawals**: capped by that asset's `max_burn_per_tx`; amounts above `admin_approval_threshold` also need admin approval
+
+CHANSE and ANSEM have independent values. See [Fees & Limits](/bridge/fees-and-limits). For amounts above the cap, split into multiple transactions.
+</Accordion>
+
+<Accordion title="Are there any bridging fees?">
+No. The bridge charges **zero fees** on any asset. You receive the exact amount you deposit or withdraw. Gas on the Solana side is covered for you in both directions: deposits are sponsored by the relayer (no SOL needed) and withdrawals are released by the relayer (it pays the Solana fee). You only pay a small ansemchain gas fee in CHANSE for the withdrawal, even when the asset being withdrawn is ANSEM.
+</Accordion>
+
+<Accordion title="Are CHANSE and ANSEM the same kind of token on Solana?">
+Both are **SPL Token-2022** mints. Token-2022 uses a different associated-token-account derivation than legacy SPL, which the bridge and app handle automatically. ANSEM on ansemchain (`uansem`) is 1:1 with the pump.fun SPL mint `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`. CHANSE is the native gas and staking token on ansemchain; ANSEM is a bridged asset, not a gas token.
+</Accordion>
+
+<Accordion title="Can I bridge staking rewards back to Solana?">
+No. Only bridge-minted balances (tokens that came in via deposit) can be withdrawn. Native staking rewards earned on ansemchain are ansemchain-native and cannot cross back to Solana through the bridge.
+</Accordion>
+
+<Accordion title="Which wallets are supported?">
+| Chain | Supported Wallets |
+|-------|-------------------|
+| Solana | Phantom, Solflare, and other Solana Wallet Adapter-compatible wallets |
+| ansemchain | Keplr, Leap, Ansem Wallet |
+</Accordion>
+
+<Accordion title="What happens if the relayer goes down?">
+No funds are lost. The relayer tracks its processing state in a database:
+
+- **Deposits**: when it comes back online, it resumes from the last processed Solana signature
+- **Withdrawals**: it resumes from the last processed block; escrowed coins wait safely until they are released (`completed`) or refunded (`failed`)
+
+All pending transfers are completed once the relayer recovers.
+</Accordion>
+
+<Accordion title="How does the bridge keep supply honest?">
+The bridge uses several measures:
+
+- **Per-mint pool custody** -- each asset's tokens are held in its own auditable on-chain vault
+- **Per-denom supply conservation** -- ansemchain mints only what is locked in the corresponding vault, tracked by `BridgeMintedSupply`, so the total of each asset across both chains stays constant
+- **Escrow-based withdrawals** -- coins are burned only after the Solana release confirms, otherwise refunded
+- **Per-asset rate limits and admin approval** on large withdrawals
+- **User-signed burns** -- the relayer cannot initiate withdrawals; only users can move their own tokens
+- **Replay protection** -- each deposit is mintable exactly once (deposit tx signature as the lock id), and a `ProcessedBurn` guard prevents double release on withdraw
+</Accordion>
+
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deposit" icon="arrow-down" href="/bridge/deposit">
+    Bridge an asset from Solana to ansemchain
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/bridge/architecture">
+    Technical deep-dive into the bridge system
+  </Card>
+</CardGroup>

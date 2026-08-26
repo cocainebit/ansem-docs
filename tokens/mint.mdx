@@ -1,0 +1,211 @@
+---
+title: 'Mint Tokens'
+description: 'Create additional token supply'
+---
+
+# Mint Tokens
+
+The `ansem token mint` command creates new tokens and sends them to a specified address. Only the designated minter can mint tokens.
+
+## Usage
+
+```bash wrap
+ansem token mint <contract> <recipient> <amount> --from <key>
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `contract` | Token contract address |
+| `recipient` | Address to receive tokens |
+| `amount` | Amount to mint (in smallest unit) |
+
+### Flags
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--from` | Signing key (must be minter) | Yes |
+| `--dry-run` | Simulate without broadcasting | No |
+
+## Examples
+
+### Mint to Yourself
+
+```bash wrap
+ansem token mint ansem1tokencontract... ansem1myaddress... 1000000000 --from mykey
+```
+
+### Mint to Another Address
+
+```bash wrap
+ansem token mint ansem1tokencontract... ansem1recipient... 5000000 --from mykey
+```
+
+### Dry Run
+
+```bash wrap
+ansem token mint ansem1tokencontract... ansem1recipient... 1000000 --from mykey --dry-run
+```
+
+Output:
+```
+Dry run mode - transaction not broadcast
+
+Estimated gas: 150,000
+Estimated fee: 1,500 uchanse
+
+Mint Details:
+  Token: ansem1tokencontract...
+  Recipient: ansem1recipient...
+  Amount: 1,000,000
+```
+
+## Output
+
+Successful mint:
+
+```
+Tokens Minted Successfully!
+
+Token:     ansem1tokencontract...
+Recipient: ansem1recipient...
+Amount:    1,000,000
+TxHash:    ABC123DEF456...
+Gas Used:  145678
+Block:     12345
+```
+
+## Minter Authorization
+
+Only the designated minter can mint tokens:
+
+```bash wrap
+# Check who can mint
+ansem token info ansem1tokencontract...
+```
+
+Output:
+```
+Token Information
+
+Name:         My Token
+Symbol:       MTK
+Decimals:     6
+Total Supply: 1,000,000,000,000
+
+Minter:       ansem1minteraddress...
+Cap:          Unlimited
+```
+
+### Error: Not the Minter
+
+```bash wrap
+ansem token mint ansem1tokencontract... ansem1recipient... 1000 --from wrongkey
+```
+
+```
+Error: permission denied: only the token minter can mint tokens
+```
+
+## Mint Caps
+
+If the token has a cap, minting beyond it fails:
+
+```bash wrap
+ansem token mint ansem1tokencontract... ansem1recipient... 999999999999999 --from mykey
+```
+
+```
+Error: minting would exceed token cap
+```
+
+Check current supply vs cap:
+
+```bash wrap
+ansem token info ansem1tokencontract...
+```
+
+## Amount Calculation
+
+The amount is in the smallest unit (base amount). For a token with 6 decimals:
+
+| Display Amount | Base Amount |
+|----------------|-------------|
+| 1 MTK | 1,000,000 |
+| 100 MTK | 100,000,000 |
+| 0.001 MTK | 1,000 |
+
+Example: Mint 1,000 tokens:
+```bash wrap
+ansem token mint ansem1contract... ansem1recipient... 1000000000 --from mykey
+#                                              ^ 1000 * 10^6
+```
+
+## Batch Minting
+
+For multiple recipients, run multiple commands:
+
+```bash wrap
+# Mint to multiple addresses
+ansem token mint ansem1contract... ansem1addr1... 1000000 --from mykey
+ansem token mint ansem1contract... ansem1addr2... 2000000 --from mykey
+ansem token mint ansem1contract... ansem1addr3... 3000000 --from mykey
+```
+
+Or script it:
+
+```bash wrap
+#!/bin/bash
+CONTRACT="ansem1tokencontract..."
+KEY="mykey"
+
+for addr in ansem1addr1... ansem1addr2... ansem1addr3...; do
+  ansem token mint $CONTRACT $addr 1000000 --from $KEY
+  sleep 1  # Wait for tx to confirm
+done
+```
+
+## Under the Hood
+
+`ansem token mint` executes a `MsgExecuteContract`:
+
+```json wrap
+{
+  "contract": "ansem1tokencontract...",
+  "msg": {
+    "mint": {
+      "recipient": "ansem1recipient...",
+      "amount": "1000000"
+    }
+  },
+  "funds": []
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Permission denied">
+    You're not the designated minter. Check:
+    ```bash
+    ansem token info ansem1tokencontract...
+    # Look at "Minter" field
+    ```
+  </Accordion>
+
+  <Accordion title="Would exceed cap">
+    The token has a maximum supply. Check:
+    ```bash
+    ansem token info ansem1tokencontract...
+    # Compare Total Supply to Cap
+    ```
+  </Accordion>
+
+  <Accordion title="Contract not found">
+    Verify the contract address:
+    ```bash
+    ansem program info ansem1tokencontract...
+    ```
+  </Accordion>
+</AccordionGroup>

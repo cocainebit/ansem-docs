@@ -1,0 +1,164 @@
+---
+title: 'msg.rs'
+description: 'The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type.'
+---
+
+The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type. This is the contract's API surface, what you can call and what comes back.
+
+<Info>Live source from `contracts/proposals/src/msg.rs` (154 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+use crate::state::{Config, DisplayOverride, Proposal, ProposalStatus};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InstantiateMsg {
+    pub launchpad_contract: String,
+    pub twitter_track_threshold: u32,
+    pub rename_approval_percent: Option<u32>,
+    pub rename_window_seconds: Option<u64>,
+    pub general_voting_window_seconds: Option<u64>,
+    pub general_min_balance_uchanse: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExecuteMsg {
+    ProposeTwitterTrack {
+        twitter_handle: String,
+    },
+    ProposeTokenRename {
+        token_address: String,
+        new_name: String,
+        new_symbol: String,
+        new_image: String,
+    },
+    ProposeGeneral {
+        title: String,
+        description: String,
+    },
+    Vote {
+        proposal_id: u64,
+        vote: bool,
+    },
+    FinalizeRename {
+        proposal_id: u64,
+        total_holders: u32,
+    },
+    FinalizeGeneral {
+        proposal_id: u64,
+    },
+    ExpireProposal {
+        proposal_id: u64,
+    },
+    RemoveTrackedHandle {
+        handle: String,
+    },
+    UpdateConfig {
+        twitter_track_threshold: Option<u32>,
+        rename_approval_percent: Option<u32>,
+        rename_window_seconds: Option<u64>,
+        launchpad_contract: Option<String>,
+        general_voting_window_seconds: Option<u64>,
+        general_min_balance_uchanse: Option<u64>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryMsg {
+    Config {},
+    Proposal {
+        id: u64,
+    },
+    Proposals {
+        status: Option<ProposalStatus>,
+        limit: Option<u32>,
+        start_after: Option<u64>,
+    },
+    Votes {
+        proposal_id: u64,
+    },
+    HasVoted {
+        proposal_id: u64,
+        voter: String,
+    },
+    DisplayOverride {
+        token_address: String,
+    },
+    AllDisplayOverrides {},
+    TrackedHandles {},
+    RenameEligible {
+        token_address: String,
+    },
+}
+
+// Response types
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigResponse {
+    pub config: Config,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ProposalResponse {
+    pub proposal: Proposal,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ProposalsResponse {
+    pub proposals: Vec<Proposal>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VoteInfo {
+    pub voter: String,
+    pub vote: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct VotesResponse {
+    pub votes: Vec<VoteInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct HasVotedResponse {
+    pub has_voted: bool,
+    pub vote: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DisplayOverrideResponse {
+    pub override_info: Option<DisplayOverride>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AllDisplayOverridesResponse {
+    pub overrides: Vec<DisplayOverrideEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DisplayOverrideEntry {
+    pub token_address: String,
+    pub override_info: DisplayOverride,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TrackedHandleEntry {
+    pub handle: String,
+    pub proposal_id: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TrackedHandlesResponse {
+    pub handles: Vec<TrackedHandleEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct RenameEligibleResponse {
+    pub eligible: bool,
+    pub reason: Option<String>,
+}
+```

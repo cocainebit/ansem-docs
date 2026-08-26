@@ -1,0 +1,239 @@
+---
+title: 'Accounts'
+description: 'Account types and addresses on ansemchain'
+---
+
+# Accounts
+
+ansemchain uses standard account types with the `ansem` address prefix.
+
+## Address Formats
+
+| Type | Prefix | Example |
+|------|--------|---------|
+| Account | `ansem1` | `ansem1abc123def456ghi789jkl012mno345pqr678stu` |
+| Validator | `ansemvaloper1` | `ansemvaloper1abc123def456ghi789jkl012mno345pqr678stu` |
+| Consensus | `ansemvalcons1` | `ansemvalcons1abc123def456ghi789jkl012mno345pqr678stu` |
+
+## Account Derivation
+
+ansemchain uses the standard HD path for key derivation:
+
+```
+m/44'/118'/0'/0/0
+```
+
+| Level | Value | Meaning |
+|-------|-------|---------|
+| Purpose | 44' | BIP44 standard |
+| Coin Type | 118' | Standard |
+| Account | 0' | First account |
+| Change | 0 | External chain |
+| Index | 0 | First address |
+
+<Note>
+The coin type `118` is the standard coin type. This ensures compatibility with compatible wallets like Keplr.
+</Note>
+
+## Key Generation
+
+### Generate New Key
+
+```bash wrap
+ansem keys generate mykey
+```
+
+Output:
+```
+Generated new keypair: mykey
+
+Address: ansem1qwertyuiopasdfghjklzxcvbnm12345678
+Mnemonic (save this securely):
+word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12
+
+WARNING: Write down your mnemonic phrase and store it securely.
+```
+
+### Import Existing Key
+
+```bash wrap
+ansem keys import mykey --mnemonic "word1 word2 word3 ... word12"
+```
+
+Or interactively:
+```bash wrap
+ansem keys import mykey
+# Enter your 12 or 24 word mnemonic:
+```
+
+### List Keys
+
+```bash wrap
+ansem keys list
+```
+
+Output:
+```
+NAME      ADDRESS
+mykey     ansem1qwertyuiopasdfghjklzxcvbnm12345678
+alice     ansem1aliceaddress...
+bob       ansem1bobaddress...
+```
+
+### Export Key
+
+```bash wrap
+ansem keys export mykey
+```
+
+This exports an armored ASCII format that can be imported into other wallets.
+
+## Test Accounts
+
+The local development network (`ansem localnet`) includes pre-funded test accounts:
+
+| Name | Balance | Mnemonic |
+|------|---------|----------|
+| `alice` | 1,000,000 CHANSE | `abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about` |
+| `bob` | 500,000 CHANSE | Standard test mnemonic |
+
+<Warning>
+**Never use test mnemonics for real funds.** These are well-known phrases used only for development.
+</Warning>
+
+## Keyring Backends
+
+The CLI supports multiple storage backends for private keys:
+
+### OS Backend (Recommended)
+
+Uses the operating system's secure keychain:
+- **macOS:** Keychain
+- **Windows:** Credential Manager
+- **Linux:** Secret Service (GNOME Keyring, KWallet)
+
+```bash wrap
+ansem config set keyring-backend os
+```
+
+### File Backend
+
+Stores keys in an encrypted file at `~/.ansem/keyring-file/`:
+
+```bash wrap
+ansem config set keyring-backend file
+```
+
+<Note>
+File backend requires a passphrase for each operation.
+</Note>
+
+### Test Backend
+
+Stores keys unencrypted (development only):
+
+```bash wrap
+ansem config set keyring-backend test
+```
+
+<Warning>
+**Never use test backend for real funds.** Keys are stored in plain text.
+</Warning>
+
+## Account Operations
+
+### Check Balance
+
+```bash wrap
+# By address
+ansem balance ansem1abc123...
+
+# By key name
+ansem balance --key mykey
+```
+
+### View Transaction History
+
+```bash wrap
+ansem tx history ansem1abc123...
+# or
+ansem tx history --key mykey
+```
+
+### Using ansemd
+
+For advanced operations, use the chain daemon:
+
+```bash wrap
+# List all keys
+ansemd keys list --home ~/.ansem --keyring-backend os
+
+# Show specific key
+ansemd keys show mykey --home ~/.ansem --keyring-backend os
+
+# Get account info from chain
+ansemd query auth account ansem1abc123... --node https://rpc.ansemchain.fun
+```
+
+## Account Types
+
+### Standard Account
+
+Regular user accounts created with `ansem keys generate`.
+
+```json wrap
+{
+  "@type": "/cosmos.auth.v1beta1.BaseAccount",
+  "address": "ansem1...",
+  "pub_key": {
+    "@type": "/cosmos.crypto.secp256k1.PubKey",
+    "key": "..."
+  },
+  "account_number": "42",
+  "sequence": "7"
+}
+```
+
+### Module Account
+
+System accounts owned by chain modules (not user-controlled):
+
+| Module | Address | Permissions |
+|--------|---------|-------------|
+| `fee_collector` | `ansem1...` | None (receives fees) |
+| `distribution` | `ansem1...` | None (holds rewards) |
+| `bonded_tokens_pool` | `ansem1...` | Burner, Staking |
+| `not_bonded_tokens_pool` | `ansem1...` | Burner, Staking |
+| `gov` | `ansem1...` | Burner |
+| `wasm` | `ansem1...` | Burner |
+
+### Contract Account
+
+Accounts created when instantiating CosmWasm contracts:
+
+```bash wrap
+ansem program info ansem1contractaddress...
+```
+
+## Security Best Practices
+
+<AccordionGroup>
+  <Accordion title="Backup your mnemonic">
+    - Write it on paper (not digital)
+    - Store in multiple secure locations
+    - Consider metal backup for fire/water resistance
+    - Never share with anyone
+  </Accordion>
+
+  <Accordion title="Use hardware wallets">
+    For significant holdings, use Ledger or similar hardware wallets  support.
+  </Accordion>
+
+  <Accordion title="Verify addresses">
+    Always double-check the first and last 4-6 characters of addresses before sending.
+  </Accordion>
+
+  <Accordion title="Use test accounts for development">
+    Keep real funds on separate keys from development/testing activities.
+  </Accordion>
+</AccordionGroup>

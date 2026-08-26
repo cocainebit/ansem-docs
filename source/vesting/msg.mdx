@@ -1,0 +1,89 @@
+---
+title: 'msg.rs'
+description: 'The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type.'
+---
+
+The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type. This is the contract's API surface, what you can call and what comes back.
+
+<Info>Live source from `contracts/vesting/src/msg.rs` (79 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::Uint128;
+
+#[cw_serde]
+pub struct InstantiateMsg {
+    /// CW20 contract that will hold the vested tokens. Must match the
+    /// `info.sender` of the funding `Receive` hook.
+    pub token: String,
+    pub beneficiary: String,
+    /// Unix seconds. start_time <= cliff_time <= end_time.
+    pub start_time: u64,
+    pub cliff_time: u64,
+    pub end_time: u64,
+}
+
+#[cw_serde]
+pub enum ExecuteMsg {
+    /// CW20 hook. Funds the account in a single shot. `msg` field is
+    /// unused; the amount in the hook must equal what the schedule
+    /// expects (or, if `total_amount` was zero at instantiate, sets it
+    /// to the received amount).
+    Receive(Cw20ReceiveMsg),
+    /// Beneficiary withdraws everything currently claimable.
+    Claim {},
+}
+
+/// Inlined to avoid pulling in cw20::Cw20ReceiveMsg's `Binary` import
+/// dependency just for the `msg` field we don't use.
+#[cw_serde]
+pub struct Cw20ReceiveMsg {
+    pub sender: String,
+    pub amount: Uint128,
+    pub msg: cosmwasm_std::Binary,
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(ScheduleResponse)]
+    Schedule {},
+    #[returns(BeneficiaryResponse)]
+    Beneficiary {},
+    #[returns(ConfigResponse)]
+    Config {},
+}
+
+#[cw_serde]
+pub struct ConfigResponse {
+    pub token: String,
+    pub beneficiary: String,
+    pub origin: String,
+    pub start_time: u64,
+    pub cliff_time: u64,
+    pub end_time: u64,
+    pub total_amount: Uint128,
+    pub funded: bool,
+}
+
+#[cw_serde]
+pub struct ScheduleResponse {
+    pub total_amount: Uint128,
+    pub vested: Uint128,
+    pub released: Uint128,
+    pub claimable: Uint128,
+    pub now_seconds: u64,
+    pub start_time: u64,
+    pub cliff_time: u64,
+    pub end_time: u64,
+    pub funded: bool,
+}
+
+#[cw_serde]
+pub struct BeneficiaryResponse {
+    pub beneficiary: String,
+}
+
+#[cw_serde]
+pub struct MigrateMsg {}
+```

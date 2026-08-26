@@ -1,0 +1,62 @@
+---
+title: 'Deployed Contracts'
+description: 'Where every CHANSE contract is deployed on-chain, and how to read and verify the real code yourself.'
+---
+
+Every CHANSE contract is open and on-chain. Rather than paste a source snapshot here (which can drift from what is actually deployed), this page points you at the live deployment so you can read and **verify the real bytecode yourself**.
+
+## The contracts
+
+| Contract | What it does | Code ID | Address |
+|---|---|---|---|
+| **Launchpad** | Permissionless token launches on a bonding curve that graduates to the AMM | _set at launch_ | _set at launch_ |
+| **AMM** | Constant-product pools, swaps, and liquidity for graduated tokens | _set at launch_ | _set at launch_ |
+| **Oracle** | On-chain CHANSE/USD price feed | _set at launch_ | _set at launch_ |
+| **Config Registry** | The single on-chain pointer every app resolves addresses from | _set at launch_ | _set at launch_ |
+| **Vesting** | Time-locked token release schedules | _set at launch_ | _set at launch_ |
+| **Name Service** | The `.ansem` name registry | _set at launch_ | _set at launch_ |
+| **Proposals** | On-chain community proposals and voting | _set at launch_ | _set at launch_ |
+
+<Info>
+Code IDs and addresses are populated at the launch deployment. To get the **current** address of any contract at any time, resolve it from the config registry (`{"config":{}}` query) or look it up in the explorer.
+</Info>
+
+## Read and verify the real code
+
+The deployed bytecode is the source of truth. You can download it straight from the chain and confirm it matches a reproducible build, no need to trust this page or any repo.
+
+<Steps>
+  <Step title="Download the deployed bytecode">
+    ```bash
+    ansemd query wasm code <CODE_ID> launchpad.wasm --node https://rpc.ansemchain.fun:443
+    ```
+    This pulls the exact wasm running on-chain for that code ID.
+  </Step>
+  <Step title="Hash it">
+    ```bash
+    sha256sum launchpad.wasm
+    ```
+    The chain also stores this hash; you can read it with `ansemd query wasm code-info <CODE_ID>`.
+  </Step>
+  <Step title="Reproduce the build and compare">
+    Build the contract with the deterministic CosmWasm optimizer and compare the hash. A match proves the on-chain code is exactly the published source.
+    ```bash
+    docker run --rm -v "$(pwd)":/code cosmwasm/optimizer:0.16.0
+    sha256sum artifacts/ansem_launchpad.wasm   # should equal the on-chain hash
+    ```
+  </Step>
+</Steps>
+
+<Note>
+A matching hash is stronger than reading source in docs: it proves what is *actually executing*, not what someone says is executing.
+</Note>
+
+## Inspect a contract live
+
+```bash wrap
+# the contract's instantiate config
+ansemd query wasm contract-state smart <ADDRESS> '{"config":{}}' --node https://rpc.ansemchain.fun:443
+
+# which code ID an address runs
+ansemd query wasm contract <ADDRESS> --node https://rpc.ansemchain.fun:443
+```

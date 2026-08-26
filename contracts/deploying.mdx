@@ -1,0 +1,284 @@
+---
+title: 'Deploying Contracts'
+description: 'Upload and instantiate smart contracts'
+---
+
+# Deploying Contracts
+
+The `ansem program deploy` command uploads your contract to the chain and creates an instance in a single step.
+
+## Usage
+
+```bash wrap
+ansem program deploy <wasm-file> --from <key> [options]
+```
+
+## Basic Deployment
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm --from alice --label "My Contract"
+```
+
+<Accordion title="Output">
+```
+⠋ Uploading contract...
+⠙ Instantiating contract...
+
+Contract Deployed Successfully!
+
+Code ID:   1
+Contract:  ansem1abc123def456...
+Label:     My Contract
+TxHash:    ABC123DEF456...
+Gas Used:  234567
+Block:     12345
+```
+</Accordion>
+
+## Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--from` | Signing key | Required |
+| `--label` | Contract label | Filename |
+| `--msg` | Instantiate message (JSON or @file) | `{}` |
+| `--admin` | Admin address | Sender |
+| `--no-admin` | No admin (immutable) | false |
+| `--funds` | Initial funds | None |
+| `--dry-run` | Simulate only | false |
+| `--gas-buffer` | Gas multiplier | 1.3 |
+
+## Examples
+
+### With Instantiate Message
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --label "Counter" \
+  --msg '{"count": 42}'
+```
+
+### From Message File
+
+```bash wrap
+# Create init.json
+echo '{"count": 42, "owner": "ansem1..."}' > init.json
+
+# Deploy with file
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --msg @init.json
+```
+
+### With Initial Funds
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --label "Escrow" \
+  --funds 1000000uchanse
+```
+
+### Immutable Contract (No Admin)
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --no-admin
+```
+
+<Warning>
+Immutable contracts cannot be upgraded or migrated. Use this for production contracts that should never change.
+</Warning>
+
+### Custom Admin
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --admin ansem1multisigaddress...
+```
+
+## Dry Run
+
+Simulate deployment without broadcasting:
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --dry-run
+```
+
+Output:
+```
+Dry run mode - transaction not broadcast
+
+Store:
+  Estimated gas: 1,500,000
+  Estimated fee: 15,000 uchanse
+
+Instantiate:
+  Estimated gas: 250,000
+  Estimated fee: 2,500 uchanse
+
+Total:
+  Gas: 1,750,000
+  Fee: 17,500 uchanse
+
+Contract Details:
+  Label: my_contract
+  Admin: ansem1youraddress...
+  Init msg: {}
+```
+
+## Deployment Flow
+
+`ansem program deploy` combines two operations:
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Upload Wasm    │────▶│   Get Code ID   │────▶│  Instantiate    │
+│  (MsgStoreCode) │     │   (from events) │     │   (MsgInst...)  │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                      │                       │
+         │                      │                       │
+         ▼                      ▼                       ▼
+    Upload TX              Code ID: 1            Contract Address
+```
+
+### Step 1: Store Code
+
+Uploads the Wasm bytecode to the chain:
+
+- Creates a unique Code ID
+- Bytecode stored in chain state
+- Same code can be instantiated multiple times
+
+### Step 2: Instantiate
+
+Creates a contract instance:
+
+- New contract address generated
+- Initial state set via `InstantiateMsg`
+- Admin assigned (for migrations)
+
+## Separate Upload and Instantiate
+
+For advanced use cases, separate the steps:
+
+```bash wrap
+# 1. Store code only
+ansemd tx wasm store artifacts/my_contract.wasm \
+  --from alice \
+  --gas auto \
+  --gas-adjustment 1.5 \
+  --chain-id ansem-1 \
+  -y
+
+# 2. Get code ID
+ansemd query wasm list-code --node https://rpc.ansemchain.fun
+
+# 3. Instantiate
+ansemd tx wasm instantiate 1 '{"count":42}' \
+  --from alice \
+  --label "Counter" \
+  --admin ansem1... \
+  --gas auto \
+  --gas-adjustment 1.5 \
+  --chain-id ansem-1 \
+  -y
+```
+
+## Multiple Instances
+
+Create multiple instances of the same code:
+
+```bash wrap
+# First instance
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --label "Counter A" \
+  --msg '{"count": 0}'
+
+# Second instance (reuses code if already uploaded)
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --label "Counter B" \
+  --msg '{"count": 100}'
+```
+
+## Error Handling
+
+Common errors and solutions:
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "wasm validation failed" | Invalid Wasm file | Rebuild contract |
+| "insufficient funds" | Not enough uchanse | Fund account |
+| "duplicate label" | Label already exists | Use unique label |
+| "instantiate error" | Invalid init message | Check message format |
+
+### User-Friendly Errors
+
+The CLI translates chain errors:
+
+```
+# Instead of raw error:
+# "rpc error: code = InvalidArgument desc = ..."
+
+# You see:
+Error: contract validation failed - ensure the wasm file is a valid CosmWasm contract
+```
+
+## Verify Deployment
+
+After deployment:
+
+```bash wrap
+# Check contract info
+ansem program info ansem1contractaddress...
+
+# Query contract state
+ansem program query ansem1contractaddress... '{"get_count":{}}'
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Contract validation failed">
+    The Wasm file may be invalid:
+    ```bash
+    # Rebuild
+    ansem program build
+
+    # Check file
+    file artifacts/my_contract.wasm
+    ```
+  </Accordion>
+
+  <Accordion title="Insufficient funds">
+    Check balance:
+    ```bash
+    ansem balance --key alice
+    ```
+    For localnet, use test accounts with pre-funded balances.
+  </Accordion>
+
+  <Accordion title="Invalid instantiate message">
+    Check your JSON:
+    ```bash
+    # Validate JSON
+    echo '{"count": 42}' | jq .
+    ```
+    Ensure it matches `InstantiateMsg` in your contract.
+  </Accordion>
+
+  <Accordion title="Transaction timeout">
+    Node may be slow:
+    ```bash
+    # Check node status
+    curl https://rpc.ansemchain.fun/status | jq '.result.sync_info'
+    ```
+  </Accordion>
+</AccordionGroup>

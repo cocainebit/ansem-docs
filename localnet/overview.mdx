@@ -1,0 +1,199 @@
+---
+title: 'Local Development'
+description: 'Run a local ansemchain for development and testing'
+---
+
+# Local Development
+
+The `ansem localnet` command provides a complete local blockchain environment for development and testing.
+
+## Why Localnet?
+
+| Benefit | Description |
+|---------|-------------|
+| **Fast iteration** | No waiting for testnet blocks |
+| **Free transactions** | No need for testnet tokens |
+| **Full control** | Reset state anytime |
+| **Offline development** | No network required |
+
+## What's Included
+
+When you start localnet, you get:
+
+- **Full ansemchain node** running locally
+- **Pre-funded test accounts** (alice, bob)
+- **All APIs** (RPC, REST, gRPC)
+- **CosmWasm** enabled for smart contracts
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    ansem localnet                         │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
+│  │   ansemd    │  │  Consensus  │  │   P2P/Net   │    │
+│  │   (app)     │◀─│  (BFT PoS)  │◀─│  (network)  │    │
+│  └─────────────┘  └─────────────┘  └─────────────┘    │
+│         │                                               │
+│         ▼                                               │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │                   APIs                           │   │
+│  ├─────────────┬─────────────┬─────────────────────┤   │
+│  │ RPC :26657  │ REST :1317  │ gRPC :9090          │   │
+│  └─────────────┴─────────────┴─────────────────────┘   │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Quick Start
+
+```bash wrap
+# Start localnet
+ansem localnet start
+
+# In another terminal, check it's running
+ansem localnet status
+
+# Use test accounts
+ansem balance --key alice
+ansem balance --key bob
+
+# When done
+ansem localnet stop
+```
+
+## Endpoints
+
+These are for a node you run locally. To connect to the **live chain** instead, use the public endpoints: `https://rpc.ansemchain.fun` and `https://rest.ansemchain.fun`.
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| Chain RPC | http://localhost:26657 | Transactions, blocks, consensus |
+| REST API | http://localhost:1317 | chain state queries |
+| gRPC | localhost:9090 | Programmatic access |
+
+## Test Accounts
+
+Localnet comes with pre-funded accounts:
+
+| Name | Balance | Purpose |
+|------|---------|---------|
+| `alice` | 1,000,000 CHANSE | Primary test account |
+| `bob` | 500,000 CHANSE | Secondary test account |
+
+These accounts are automatically available in your keyring when localnet starts.
+
+## Data Directory
+
+Localnet stores data in `~/.ansem-localnet/`:
+
+```
+~/.ansem-localnet/
+├── config/
+│   ├── genesis.json    # Chain genesis
+│   ├── config.toml     # Node configuration
+│   └── app.toml        # App configuration
+├── data/
+│   └── ...             # Chain state
+└── keyring-test/
+    └── ...             # Test account keys
+```
+
+## Reset State
+
+To start fresh:
+
+```bash wrap
+# Stop if running
+ansem localnet stop
+
+# Remove data
+rm -rf ~/.ansem-localnet
+
+# Start fresh
+ansem localnet start
+```
+
+## Development Workflow
+
+### 1. Start Localnet
+
+```bash wrap
+ansem localnet start
+```
+
+### 2. Deploy Contract
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm \
+  --from alice \
+  --label "Test Contract"
+```
+
+### 3. Interact
+
+```bash wrap
+# Query
+ansem program query ansem1contract... '{"get_count":{}}'
+
+# Execute
+ansem program execute ansem1contract... '{"increment":{}}' --from alice
+```
+
+### 4. Iterate
+
+Make changes and redeploy:
+
+```bash wrap
+ansem program build
+ansem program deploy artifacts/my_contract.wasm --from alice --label "Test v2"
+```
+
+### 5. Reset When Needed
+
+```bash wrap
+ansem localnet stop
+rm -rf ~/.ansem-localnet
+ansem localnet start
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port already in use">
+    Another process is using port 26657, 1317, or 9090:
+    ```bash
+    # Find and kill the process
+    lsof -i :26657
+    kill -9 <PID>
+
+    # Or stop any running localnet
+    ansem localnet stop
+    ```
+  </Accordion>
+
+  <Accordion title="Localnet won't start">
+    Try resetting:
+    ```bash
+    ansem localnet stop
+    rm -rf ~/.ansem-localnet
+    ansem localnet start
+    ```
+  </Accordion>
+
+  <Accordion title="Test accounts not found">
+    Ensure localnet is running:
+    ```bash
+    ansem localnet status
+    ```
+    Test accounts are only available when localnet is active.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+- [Start and stop localnet](/localnet/start)
+- [Test accounts](/localnet/accounts)
+- [Deploy your first contract](/contracts/deploying)

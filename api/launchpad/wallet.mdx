@@ -1,0 +1,133 @@
+---
+title: 'Wallet'
+description: 'Query balances, token holdings, transaction history, and broadcast transactions'
+---
+
+# Wallet Endpoints
+
+Convenience endpoints for wallet applications - query native balances, CW20 token holdings, transaction history, and broadcast signed transactions through the backend.
+
+## Get Native Balance
+
+Returns the `uchanse` balance for an address.
+
+```
+GET /api/wallet/balance?address=ansem1useraddress...
+```
+
+```json wrap
+{
+  "address": "ansem1useraddress...",
+  "balance": "5000000000"
+}
+```
+
+The balance is in `uchanse`. Divide by 1,000,000 for CHANSE.
+
+## Get Token Holdings
+
+Returns all CW20 token balances for an address by querying each known token contract.
+
+```
+GET /api/wallet/tokens?address=ansem1useraddress...
+```
+
+```json wrap
+{
+  "address": "ansem1useraddress...",
+  "tokens": [
+    {
+      "address": "ansem1tokencontract...",
+      "name": "Example Token",
+      "symbol": "EXT",
+      "balance": "50000000000",
+      "price_uchanse": "52000",
+      "graduated": true
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `balance` | Token balance in micro-units |
+| `price_uchanse` | Current token price (uchanse per token, scaled by 10^6) |
+| `graduated` | Whether the token has moved to AMM trading |
+
+## Get Transaction History
+
+Returns transactions for an address, ordered by most recent first.
+
+```
+GET /api/wallet/transactions?address=ansem1useraddress...
+```
+
+Query Parameters:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `address` | string | required | ansemchain address |
+| `limit` | number | 20 | Max results (1-100) |
+| `page` | number | 1 | Page number |
+
+## Get Prices
+
+Returns the current CHANSE/USD price fetched from pump.fun.
+
+```
+GET /api/wallet/prices
+```
+
+```json wrap
+{
+  "CHANSE": 0.00042
+}
+```
+
+The price is cached for 5 minutes. Returns `{ "CHANSE": 0 }` if the price feed is unavailable.
+
+## Broadcast Transaction
+
+Submit a signed transaction through the backend node. The backend relays it to the chain and returns the result.
+
+```
+POST /api/wallet/broadcast
+```
+
+### Request Body
+
+```json wrap
+{
+  "tx_bytes": "base64-encoded-signed-transaction"
+}
+```
+
+### Response
+
+```json wrap
+{
+  "tx_hash": "A1B2C3D4E5F6...",
+  "code": 0,
+  "raw_log": ""
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `tx_hash` | Transaction hash (use to query status later) |
+| `code` | `0` = success, non-zero = error |
+| `raw_log` | Error details if `code` is non-zero |
+
+<Note>
+The broadcast endpoint includes deduplication - submitting the same signed transaction twice will return the hash from the first submission rather than broadcasting again.
+</Note>
+
+### Error Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 4 | Unauthorized (wrong signer) |
+| 5 | Insufficient funds |
+| 11 | Out of gas |
+| 32 | Account sequence mismatch (re-query account and retry) |

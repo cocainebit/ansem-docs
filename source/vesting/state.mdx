@@ -1,0 +1,103 @@
+---
+title: 'state.rs'
+description: 'Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract''s state between calls.'
+---
+
+Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract's state between calls.
+
+<Info>Live source from `contracts/vesting/src/state.rs` (93 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, Uint128};
+use cw_storage_plus::Item;
+
+/// One vesting account, one contract instance. Non-revocable. Funded
+/// exactly once via a CW20 `Send` hook from the configured `token`
+/// contract. Beneficiary claims unlocked-but-unreleased tokens with
+/// `ExecuteMsg::Claim {}`.
+///
+/// Time model: linear vesting between `start_time` and `end_time` with
+/// an optional cliff. Everything before `cliff_time` is zero; at
+/// `cliff_time` the cliff slice (proportional to elapsed time at the
+/// cliff) unlocks all at once; after that it's linear; at `end_time`
+/// and beyond, the full `total_amount` is unlocked.
+#[cw_serde]
+pub struct Config {
+    /// CW20 token this vesting account holds.
+    pub token: Addr,
+    /// Recipient. Only this address can `Claim`.
+    pub beneficiary: Addr,
+    /// The contract that instantiated this vesting account (usually the
+    /// launchpad). Recorded for off-chain attribution; no privileges on
+    /// chain. Non-revocable means even the creator cannot pull back.
+    pub origin: Addr,
+    /// Linear schedule, all timestamps in seconds since UNIX epoch.
+    pub start_time: u64,
+    pub cliff_time: u64,
+    pub end_time: u64,
+    /// Total amount to be vested. Set when the contract is funded; zero
+    /// before funding. Once funded, this is immutable.
+    pub total_amount: Uint128,
+    /// Amount the beneficiary has claimed so far.
+    pub released: Uint128,
+    /// True once the CW20 hook has fully funded the account. Funding
+    /// is one-shot to keep the schedule auditable: the moment the
+    /// schedule is funded matches its on-chain timestamp.
+    pub funded: bool,
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
+
+impl Config {
+    /// Validate constraints across timestamps. Math elsewhere assumes
+    /// these hold. Cliff is allowed to equal start (no cliff) or end
+    /// (entire amount unlocks at end as a single drop), and start may
+    /// equal end (no linear region, everything cliff-style).
+    pub fn validate(&self) -> Result<(), crate::error::ContractError> {
+        use crate::error::ContractError;
+        if self.start_time > self.end_time {
+            return Err(ContractError::InvalidSchedule {
+                reason: "start_time must be <= end_time".into(),
+            });
+        }
+        if self.cliff_time < self.start_time || self.cliff_time > self.end_time {
+            return Err(ContractError::InvalidSchedule {
+                reason: "cliff_time must be in [start_time, end_time]".into(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Compute the cumulative amount unlocked at `now_seconds`. Returns
+    /// a Uint128 that is monotonically non-decreasing in `now_seconds`.
+    pub fn vested_amount(&self, now_seconds: u64) -> Uint128 {
+        if !self.funded || self.total_amount.is_zero() {
+            return Uint128::zero();
+        }
+        if now_seconds < self.cliff_time {
+            return Uint128::zero();
+        }
+        if now_seconds >= self.end_time {
+            return self.total_amount;
+        }
+        // Linear region: total * (now - start) / (end - start).
+        // start may equal end if the contract was configured as a pure
+        // cliff drop with no linear tail; that case is caught above by
+        // the `>= end_time` branch.
+        let elapsed = now_seconds.saturating_sub(self.start_time) as u128;
+        let duration = (self.end_time - self.start_time) as u128;
+        let total = self.total_amount.u128();
+        // Multiplication before division to avoid precision loss. u128
+        // headroom: total <= 1B * 1e6 = 1e15, elapsed <= 10 years = 3e8s,
+        // product <= 3e23, well under u128::MAX (~3.4e38).
+        Uint128::from(total * elapsed / duration)
+    }
+
+    /// Amount the beneficiary can claim right now.
+    pub fn claimable(&self, now_seconds: u64) -> Uint128 {
+        self.vested_amount(now_seconds)
+            .saturating_sub(self.released)
+    }
+}
+```

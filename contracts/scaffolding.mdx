@@ -1,0 +1,365 @@
+---
+title: 'Project Scaffolding'
+description: 'Create a new CosmWasm contract project'
+---
+
+# Project Scaffolding
+
+The `ansem init` command creates a complete CosmWasm contract project with all the necessary files and configurations.
+
+## Usage
+
+```bash wrap
+ansem init <project-name>
+```
+
+## Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--template` | Contract template | `cw20` |
+| `--force` | Overwrite existing directory | false |
+
+## Create a Project
+
+```bash wrap
+ansem init my-contract
+```
+
+<Accordion title="Output">
+```
+Creating CosmWasm project: my-contract
+
+Files created:
+  my-contract/Cargo.toml
+  my-contract/src/lib.rs
+  my-contract/src/contract.rs
+  my-contract/src/msg.rs
+  my-contract/src/state.rs
+  my-contract/src/error.rs
+  my-contract/.gitignore
+  my-contract/README.md
+
+Project created successfully!
+
+Next steps:
+  cd my-contract
+  ansem program build
+```
+</Accordion>
+
+## Project Structure
+
+```
+my-contract/
+├── Cargo.toml           # Rust dependencies and build config
+├── src/
+│   ├── lib.rs          # Contract entry point exports
+│   ├── contract.rs     # Main contract logic
+│   ├── msg.rs          # Message type definitions
+│   ├── state.rs        # State storage items
+│   └── error.rs        # Custom error types
+├── .gitignore          # Git ignore file
+└── README.md           # Build and deploy instructions
+```
+
+## File Contents
+
+### Cargo.toml
+
+```toml wrap
+[package]
+name = "my-contract"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cosmwasm-std = "2.0"
+cosmwasm-schema = "2.0"
+cw-storage-plus = "2.0"
+schemars = "0.8"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+thiserror = "1.0"
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+```
+
+### src/lib.rs
+
+```rust wrap
+pub mod contract;
+pub mod error;
+pub mod msg;
+pub mod state;
+
+pub use crate::error::ContractError;
+```
+
+### src/msg.rs
+
+```rust wrap
+use cosmwasm_schema::{cw_serde, QueryResponses};
+
+#[cw_serde]
+pub struct InstantiateMsg {
+    pub count: i32,
+}
+
+#[cw_serde]
+pub enum ExecuteMsg {
+    Increment {},
+    Decrement {},
+    Reset { count: i32 },
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(CountResponse)]
+    GetCount {},
+}
+
+#[cw_serde]
+pub struct CountResponse {
+    pub count: i32,
+}
+```
+
+### src/state.rs
+
+```rust wrap
+use cw_storage_plus::Item;
+
+pub const COUNT: Item<i32> = Item::new("count");
+```
+
+### src/error.rs
+
+```rust wrap
+use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] StdError),
+
+    #[error("Unauthorized")]
+    Unauthorized {},
+}
+```
+
+### src/contract.rs
+
+```rust wrap
+use cosmwasm_std::{
+    entry_point, to_json_binary, Binary, Deps, DepsMut,
+    Env, MessageInfo, Response, StdResult,
+};
+
+use crate::error::ContractError;
+use crate::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::state::COUNT;
+
+#[entry_point]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
+    COUNT.save(deps.storage, &msg.count)?;
+    Ok(Response::new().add_attribute("method", "instantiate"))
+}
+
+#[entry_point]
+pub fn execute(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    match msg {
+        ExecuteMsg::Increment {} => {
+            COUNT.update(deps.storage, |c| -> StdResult<_> { Ok(c + 1) })?;
+            Ok(Response::new().add_attribute("method", "increment"))
+        }
+        ExecuteMsg::Decrement {} => {
+            COUNT.update(deps.storage, |c| -> StdResult<_> { Ok(c - 1) })?;
+            Ok(Response::new().add_attribute("method", "decrement"))
+        }
+        ExecuteMsg::Reset { count } => {
+            COUNT.save(deps.storage, &count)?;
+            Ok(Response::new().add_attribute("method", "reset"))
+        }
+    }
+}
+
+#[entry_point]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::GetCount {} => {
+            let count = COUNT.load(deps.storage)?;
+            to_json_binary(&CountResponse { count })
+        }
+    }
+}
+```
+
+## Templates
+
+### CW20 Template (Default)
+
+Token contract template based on CW20 standard:
+
+```bash wrap
+ansem init my-token --template cw20
+```
+
+Creates a fungible token contract with:
+- Token minting
+- Transfers
+- Balance queries
+- Allowances
+
+## Overwrite Existing
+
+To overwrite an existing directory:
+
+```bash wrap
+ansem init my-contract --force
+```
+
+<Warning>
+This will delete all existing files in the directory!
+</Warning>
+
+## Next Steps
+
+After scaffolding:
+
+```bash wrap
+# Navigate to project
+cd my-contract
+
+# Build the contract
+ansem program build
+
+# Start local network
+ansem localnet start
+
+# Deploy
+ansem program deploy artifacts/my_contract.wasm --from alice
+```
+
+## Customizing the Contract
+
+### Add New Execute Messages
+
+1. Add variant to `ExecuteMsg` in `src/msg.rs`:
+
+```rust wrap
+#[cw_serde]
+pub enum ExecuteMsg {
+    Increment {},
+    Decrement {},
+    Reset { count: i32 },
+    // Add new message
+    Double {},
+}
+```
+
+2. Handle in `src/contract.rs`:
+
+```rust wrap
+ExecuteMsg::Double {} => {
+    COUNT.update(deps.storage, |c| -> StdResult<_> { Ok(c * 2) })?;
+    Ok(Response::new().add_attribute("method", "double"))
+}
+```
+
+### Add New Queries
+
+1. Add variant to `QueryMsg` in `src/msg.rs`:
+
+```rust wrap
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(CountResponse)]
+    GetCount {},
+    #[returns(IsPositiveResponse)]
+    IsPositive {},
+}
+
+#[cw_serde]
+pub struct IsPositiveResponse {
+    pub is_positive: bool,
+}
+```
+
+2. Handle in `src/contract.rs`:
+
+```rust wrap
+QueryMsg::IsPositive {} => {
+    let count = COUNT.load(deps.storage)?;
+    to_json_binary(&IsPositiveResponse {
+        is_positive: count > 0
+    })
+}
+```
+
+### Add State
+
+1. Define in `src/state.rs`:
+
+```rust wrap
+use cw_storage_plus::{Item, Map};
+
+pub const COUNT: Item<i32> = Item::new("count");
+pub const OWNER: Item<Addr> = Item::new("owner");
+pub const SCORES: Map<&Addr, u32> = Map::new("scores");
+```
+
+2. Use in contract:
+
+```rust wrap
+// Save owner during instantiate
+OWNER.save(deps.storage, &info.sender)?;
+
+// Read owner
+let owner = OWNER.load(deps.storage)?;
+
+// Save to map
+SCORES.save(deps.storage, &user_addr, &100)?;
+
+// Read from map
+let score = SCORES.load(deps.storage, &user_addr)?;
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Directory already exists">
+    Use `--force` to overwrite:
+    ```bash
+    ansem init my-contract --force
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied">
+    Check write permissions for the current directory.
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,158 @@
+---
+title: 'Validators'
+description: 'Query the validator set, delegations, and staking pool'
+---
+
+# Validators
+
+ansemchain uses Proof of Stake consensus with a set of validators. Query validator details, their delegators, and the overall staking pool.
+
+## List Validators
+
+Returns all validators filtered by bond status.
+
+```bash wrap
+curl "https://rest.ansemchain.fun/cosmos/staking/v1beta1/validators?status=BOND_STATUS_BONDED&pagination.limit=100"
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "validators": [
+    {
+      "operator_address": "ansemvaloper1abc123...",
+      "consensus_pubkey": {
+        "@type": "/cosmos.crypto.ed25519.PubKey",
+        "key": "..."
+      },
+      "status": "BOND_STATUS_BONDED",
+      "tokens": "50000000000000",
+      "delegator_shares": "50000000000000.000000000000000000",
+      "description": {
+        "moniker": "Validator-1",
+        "identity": "",
+        "website": "",
+        "details": ""
+      },
+      "commission": {
+        "commission_rates": {
+          "rate": "0.100000000000000000",
+          "max_rate": "0.200000000000000000",
+          "max_change_rate": "0.010000000000000000"
+        }
+      },
+      "min_self_delegation": "1"
+    }
+  ],
+  "pagination": {
+    "next_key": null,
+    "total": "3"
+  }
+}
+```
+</Accordion>
+
+### Bond Status Values
+
+| Status | Meaning |
+|--------|---------|
+| `BOND_STATUS_BONDED` | Active validators participating in consensus |
+| `BOND_STATUS_UNBONDING` | Validators in the unbonding period (21 days) |
+| `BOND_STATUS_UNBONDED` | Inactive validators not producing blocks |
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `operator_address` | Validator operator address (prefix `ansemvaloper`) |
+| `tokens` | Total staked tokens in `uchanse` |
+| `delegator_shares` | Total shares held by all delegators |
+| `commission.commission_rates.rate` | Current commission rate (e.g., `0.1` = 10%) |
+| `description.moniker` | Validator's display name |
+
+## Get Specific Validator
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/validators/ansemvaloper1abc123...
+```
+
+Returns the same structure as above for a single validator.
+
+## Get Validator Delegations
+
+List all delegators for a specific validator.
+
+```bash wrap
+curl "https://rest.ansemchain.fun/cosmos/staking/v1beta1/validators/ansemvaloper1abc123.../delegations?pagination.limit=100"
+```
+
+```json wrap
+{
+  "delegation_responses": [
+    {
+      "delegation": {
+        "delegator_address": "ansem1delegator...",
+        "validator_address": "ansemvaloper1abc123...",
+        "shares": "10000000000.000000000000000000"
+      },
+      "balance": {
+        "denom": "uchanse",
+        "amount": "10000000000"
+      }
+    }
+  ]
+}
+```
+
+## Get Delegations for an Address
+
+List all validators a given address has delegated to.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/delegations/ansem1delegator...
+```
+
+## Get Staking Pool
+
+Returns the total bonded and not-bonded token amounts across the entire chain.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/pool
+```
+
+```json wrap
+{
+  "pool": {
+    "bonded_tokens": "100000000000000",
+    "not_bonded_tokens": "5000000000000"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `bonded_tokens` | Total `uchanse` staked with active validators |
+| `not_bonded_tokens` | Total `uchanse` in unbonding or unbonded state |
+
+## Get Staking Parameters
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/params
+```
+
+```json wrap
+{
+  "params": {
+    "unbonding_time": "1814400s",
+    "max_validators": 100,
+    "max_entries": 7,
+    "bond_denom": "uchanse"
+  }
+}
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `unbonding_time` | Time to undelegate (21 days = 1,814,400 seconds) |
+| `max_validators` | Maximum number of active validators |
+| `bond_denom` | The staking token denomination (`uchanse`) |

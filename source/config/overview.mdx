@@ -1,0 +1,29 @@
+---
+title: 'Config Registry'
+description: 'The single on-chain pointer that every app resolves mutable addresses from (hot-swap).'
+---
+
+`ansem-config` is the **single source of truth** for every address that can change. Instead of hardcoding the mint, bridge program, AMM, launchpad, and oracle into every app, each app hardcodes only **one** address, this registry, and reads the rest from it at runtime.
+
+## Why it exists: hot-swap without redeploys
+
+The wallet extension, bridge dApp, launchpad frontend, the Telegram bots, and the relayer all resolve their addresses from this contract on startup. When an address rotates (a new token CA, a redeployed contract), the admin calls **`UpdateConfig` once** and every client picks up the new value, no app redeploy, no extension re-review, no rebuild.
+
+## What it stores
+
+```
+amm_contract            oracle_contract           solana_bridge_program_id
+launchpad_contract      names_contract            solana_ansem_spl_mint
+solana_rpc_url_override  ansem_rpc_url_override    ansem_rest_url_override
+reserved_addr_1 .. reserved_addr_5   (room for future pointers)
+```
+
+It also carries a **schema version** (bumped on incompatible shape changes) and an **admin** that can be rotated via `UpdateAdmin`.
+
+<Info>
+This is why "is it hot-swappable regardless of the CA?" is yes: the launch token address lives here, and clients read `solana_ansem_spl_mint` (and the rest) from this one contract.
+</Info>
+
+## Interface
+
+This contract is compact, it lives entirely in `lib.rs` (`Config`, `InstantiateMsg`, `UpdateConfig`, `UpdateAdmin`, and the query). Read it below.

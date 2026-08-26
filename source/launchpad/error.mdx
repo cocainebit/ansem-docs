@@ -1,0 +1,120 @@
+---
+title: 'error.rs'
+description: 'The typed errors this contract can return, and the conditions that trigger them.'
+---
+
+The typed errors this contract can return, and the conditions that trigger them.
+
+<Info>Live source from `contracts/launchpad/src/error.rs` (110 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] StdError),
+
+    #[error("Curve not found for token {token}")]
+    CurveNotFound { token: String },
+
+    #[error("Curve already graduated")]
+    AlreadyGraduated {},
+
+    #[error("Insufficient creation fee: expected {expected}, got {got}")]
+    InsufficientCreationFee { expected: u128, got: u128 },
+
+    #[error("Insufficient CHANSE sent")]
+    InsufficientFunds {},
+
+    #[error("Slippage exceeded: expected at least {expected}, got {actual}")]
+    SlippageExceeded { expected: u128, actual: u128 },
+
+    #[error("Invalid token address")]
+    InvalidToken {},
+
+    #[error("No tokens available for sale")]
+    NoTokensAvailable {},
+
+    #[error("Token {field} \"{value}\" was used {seconds_ago}s ago (8hr cooldown, {remaining}s remaining)")]
+    NameCooldown { field: String, value: String, seconds_ago: u64, remaining: u64 },
+
+    #[error("Invalid fee configuration")]
+    InvalidFees {},
+
+    #[error("Unauthorized")]
+    Unauthorized {},
+
+    #[error("Zero price not allowed")]
+    ZeroPrice {},
+
+    #[error("Invalid threshold bounds: min {min} must be <= max {max}")]
+    InvalidThresholdBounds { min: u128, max: u128 },
+
+    #[error("Oracle price required to create tokens")]
+    OraclePriceRequired {},
+
+    #[error("Invalid curve parameters: {reason}")]
+    InvalidCurveParams { reason: String },
+
+    #[error("Max wallet exceeded: holding {current} + buying {buying} = {would_become} exceeds limit {limit}")]
+    MaxWalletExceeded {
+        current: u128,
+        buying: u128,
+        would_become: u128,
+        limit: u128,
+    },
+
+    // ── v4: presale errors ────────────────────────────────────────────
+    #[error("Presale config invalid: {reason}")]
+    InvalidPresaleConfig { reason: String },
+
+    #[error("No presale exists for token {token}")]
+    NoPresale { token: String },
+
+    #[error("Presale window not started yet (starts at {start_time}, now {now})")]
+    PresaleNotStarted { start_time: u64, now: u64 },
+
+    #[error("Presale window already closed (ended at {end_time}, now {now})")]
+    PresaleEnded { end_time: u64, now: u64 },
+
+    #[error("Presale already finalized")]
+    PresaleAlreadyFinalized {},
+
+    #[error("Presales are not enabled yet")]
+    PresalesDisabled {},
+
+    #[error("Presale not finalized yet; claims open after finalize")]
+    PresaleNotFinalizedForClaim {},
+
+    #[error("Nothing to claim for this address")]
+    PresaleNothingToClaim {},
+
+    #[error("Already claimed")]
+    PresaleAlreadyClaimed {},
+
+    #[error("Presale not yet finalized — public Buy/Sell blocked until FinalizePresale is called")]
+    PresaleNotFinalized {},
+
+    #[error("Presale not eligible for finalize yet (end_time {end_time}, hard_cap {hard_cap}, raised {raised}, now {now})")]
+    PresaleNotFinalizable {
+        end_time: u64,
+        hard_cap: u128,
+        raised: u128,
+        now: u64,
+    },
+
+    #[error("Presale hard cap reached ({raised} / {hard_cap} uchanse)")]
+    PresaleHardCapReached { raised: u128, hard_cap: u128 },
+
+    #[error("Per-wallet cap exceeded: contributing {contributing} pushes you over {cap} uchanse")]
+    PresalePerWalletCapExceeded { contributing: u128, cap: u128 },
+
+    #[error("Address not on allowlist (Merkle proof failed)")]
+    PresaleAllowlistRejected {},
+
+    #[error("Creator allocation too high ({bps} bps, max {max_bps} bps)")]
+    CreatorAllocationTooHigh { bps: u16, max_bps: u16 },
+}
+```

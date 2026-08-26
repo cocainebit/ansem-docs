@@ -1,0 +1,24 @@
+---
+title: 'AMM'
+description: 'Constant-product automated market maker: pools, swaps, and liquidity for graduated tokens.'
+---
+
+The AMM is where tokens trade after they graduate from the launchpad. It is a **constant-product** market maker (`x * y = k`): each pool holds CHANSE on one side and a token on the other, and the product of the two reserves stays constant across swaps, which is what sets the price.
+
+## What it does
+
+- **Pools** (`CreatePool`): a CHANSE/token pair. The launchpad creates one automatically at graduation, seeded with the reserved tokens and the CHANSE raised on the curve.
+- **Swaps** (`Swap`): trade CHANSE for a token or a token for CHANSE against a pool. Token-to-CHANSE swaps arrive via the CW20 `Receive` hook (you send the CW20 tokens with the swap instruction attached).
+- **Liquidity** (`AddLiquidity` / `RemoveLiquidity`): deposit both sides to earn a share of swap fees; your LP position is tracked and withdrawn on demand.
+
+## Fees
+
+The swap fee is fixed globally in basis points (`swap_fee_bps`, 100 = 1%) and capped by the contract at **`MAX_TOTAL_FEE_BPS` = 1000 (10%)**. Pools can carry an optional `augmented_fee_bps` on top (graduated pools default to 1%). Fees accrue to liquidity providers.
+
+## Interface
+
+All pool, swap, and liquidity messages are in `msg.rs`; the swap math and reserve accounting are in `contract.rs`.
+
+<Note>
+You will see the names `dot_reserve`, `min_dot_out`, and `SwapTokenForDot` in the source. These are legacy field names from an earlier prefix, functionally they are CHANSE. They are part of the deployed message schema, so they are kept as-is for compatibility.
+</Note>

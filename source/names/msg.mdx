@@ -1,0 +1,126 @@
+---
+title: 'msg.rs'
+description: 'The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type.'
+---
+
+The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type. This is the contract's API surface, what you can call and what comes back.
+
+<Info>Live source from `contracts/names/src/msg.rs` (116 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, Uint128};
+
+use crate::state::Config;
+
+#[cw_serde]
+pub struct InstantiateMsg {
+    /// Optional admin override; defaults to message sender.
+    pub admin: Option<String>,
+    pub treasury: String,
+    pub oracle_contract: String,
+    /// UNIX seconds; while block time <= this, registration is free.
+    pub free_until_timestamp: u64,
+    /// Inclusive lower bound on raw name length (default 3).
+    pub min_length: Option<u8>,
+    /// Inclusive upper bound on raw name length (default 32).
+    pub max_length: Option<u8>,
+    /// Presentation TLD, e.g. ".ansem".
+    pub tld: Option<String>,
+    /// Pricing tiers in micro-USD; defaults applied when None.
+    pub price_3: Option<Uint128>,
+    pub price_4: Option<Uint128>,
+    pub price_5_8: Option<Uint128>,
+    pub price_9_plus: Option<Uint128>,
+}
+
+#[cw_serde]
+pub enum ExecuteMsg {
+    /// Anyone can call. During free period, no funds required. After free period,
+    /// caller must attach >= the CHANSE equivalent of the price tier (refunded
+    /// excess).
+    RegisterName {
+        name: String,
+        owner: String,
+    },
+    /// Only owner of `name` may call.
+    TransferName {
+        name: String,
+        recipient: String,
+    },
+    /// Only owner of `name` may call.
+    ReleaseName {
+        name: String,
+    },
+    /// Only owner may set their primary name.
+    SetPrimaryName {
+        name: String,
+    },
+    /// Admin only.
+    UpdateConfig {
+        admin: Option<String>,
+        treasury: Option<String>,
+        oracle_contract: Option<String>,
+        free_until_timestamp: Option<u64>,
+        prices: Option<PricesUpdate>,
+    },
+}
+
+#[cw_serde]
+pub struct PricesUpdate {
+    pub price_3: Option<Uint128>,
+    pub price_4: Option<Uint128>,
+    pub price_5_8: Option<Uint128>,
+    pub price_9_plus: Option<Uint128>,
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(ResolveResponse)]
+    Resolve { name: String },
+    #[returns(ReverseResponse)]
+    Reverse { address: String },
+    #[returns(OwnedByResponse)]
+    OwnedBy {
+        address: String,
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
+    #[returns(PricingResponse)]
+    Pricing { name: String },
+    #[returns(Config)]
+    Config {},
+}
+
+#[cw_serde]
+pub struct ResolveResponse {
+    pub owner: Option<Addr>,
+    pub registered_at: Option<u64>,
+}
+
+#[cw_serde]
+pub struct ReverseResponse {
+    pub primary: Option<String>,
+}
+
+#[cw_serde]
+pub struct OwnedByResponse {
+    pub names: Vec<String>,
+}
+
+#[cw_serde]
+pub struct PricingResponse {
+    pub fee_uchanse: Uint128,
+    pub free: bool,
+    pub tier_usd: u128,
+}
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub admin: Option<String>,
+    pub treasury: Option<String>,
+    pub oracle_contract: Option<String>,
+    pub free_until_timestamp: Option<u64>,
+}
+```

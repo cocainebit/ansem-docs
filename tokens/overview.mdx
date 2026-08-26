@@ -1,0 +1,172 @@
+---
+title: 'Token Overview'
+description: 'Create and manage CW20 fungible tokens'
+---
+
+# Token Operations
+
+ansemchain supports CW20 tokens - the CosmWasm standard for fungible tokens, similar to ERC-20 on Ethereum or SPL tokens on Solana.
+
+## What is CW20?
+
+CW20 is ansemchain's standard for fungible tokens (a CosmWasm specification). It defines:
+
+- Token metadata (name, symbol, decimals)
+- Balance tracking
+- Transfer operations
+- Minting and burning
+- Allowances (approve/transferFrom)
+
+## Token Commands
+
+| Command | Description |
+|---------|-------------|
+| `ansem token create` | Deploy a new CW20 token |
+| `ansem token mint` | Mint tokens to an address |
+| `ansem token transfer` | Send tokens to a recipient |
+| `ansem token burn` | Burn tokens from your balance |
+| `ansem token balance` | Check token balance |
+| `ansem token info` | View token metadata |
+| `ansem token list` | List all tokens you hold |
+
+## Quick Start
+
+### 1. Deploy the CW20 Base Contract
+
+First, ensure the CW20 base contract is deployed on the chain:
+
+```bash wrap
+# Run the deployment script
+./scripts/deploy-cw20.sh
+
+# Save the code ID
+ansem config set cw20-code-id 1
+```
+
+### 2. Create a Token
+
+```bash wrap
+ansem token create \
+  --name "My Token" \
+  --symbol "MTK" \
+  --decimals 6 \
+  --initial-supply 1000000000000 \
+  --from mykey
+```
+
+### 3. Check Balance
+
+```bash wrap
+ansem token balance ansem1tokencontract... --key mykey
+```
+
+### 4. Transfer Tokens
+
+```bash wrap
+ansem token transfer ansem1tokencontract... ansem1recipient... 1000000 --from mykey
+```
+
+## Token Properties
+
+When creating a token, you define:
+
+| Property | Description | Example |
+|----------|-------------|---------|
+| `name` | Human-readable name | "My Token" |
+| `symbol` | Trading symbol | "MTK" |
+| `decimals` | Decimal places | 6 |
+| `initial_supply` | Starting supply | 1000000000000 |
+| `minter` | Who can mint more | Your address |
+
+## CW20 vs Native Tokens
+
+| Feature | CW20 Tokens | Native (uchanse) |
+|---------|-------------|---------------|
+| Creation | Anyone can create | Fixed at genesis |
+| Inflation | Configurable | Zero |
+| Query | Contract query | Bank module |
+| Transfer | Contract execute | Bank send |
+| Gas Cost | Higher | Lower |
+
+## Prerequisites
+
+Before creating tokens:
+
+1. **CW20 Code ID** - The base contract must be deployed
+2. **Sufficient Balance** - Gas fees in uchanse
+3. **Key Setup** - A keypair in your keyring
+
+Check CW20 is configured:
+
+```bash wrap
+ansem config get cw20-code-id
+# Should return a number like: 1
+```
+
+If not configured, see [CW20 Setup](/tokens/create#setup).
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    ansemchain                            │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│   ┌─────────────────────────────────────────────────┐  │
+│   │              x/wasm Module                       │  │
+│   │                                                  │  │
+│   │   ┌───────────┐  ┌───────────┐  ┌───────────┐   │  │
+│   │   │  CW20     │  │  CW20     │  │  CW20     │   │  │
+│   │   │  Token A  │  │  Token B  │  │  Token C  │   │  │
+│   │   │ (MTK)     │  │ (USDC)    │  │ (TEST)    │   │  │
+│   │   └───────────┘  └───────────┘  └───────────┘   │  │
+│   │        │              │              │          │  │
+│   │        └──────────────┼──────────────┘          │  │
+│   │                       │                         │  │
+│   │              CW20 Base Contract                 │  │
+│   │                  (Code ID: 1)                   │  │
+│   │                                                  │  │
+│   └─────────────────────────────────────────────────┘  │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+Each token is an **instance** of the CW20 base contract with unique:
+- Contract address
+- Name and symbol
+- Balances
+- Minter configuration
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Governance Tokens" icon="landmark">
+    Create tokens for DAO voting and governance
+  </Card>
+  <Card title="Stablecoins" icon="dollar-sign">
+    Issue wrapped stablecoins on ansemchain
+  </Card>
+  <Card title="Reward Tokens" icon="gift">
+    Distribute rewards to users
+  </Card>
+  <Card title="Utility Tokens" icon="bolt">
+    Power in-app economies
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Token" icon="plus" href="/tokens/create">
+    Deploy your first CW20 token
+  </Card>
+  <Card title="Mint Tokens" icon="coins" href="/tokens/mint">
+    Mint additional supply
+  </Card>
+  <Card title="Transfer" icon="arrow-right" href="/tokens/transfer">
+    Send tokens to others
+  </Card>
+  <Card title="Query" icon="search" href="/tokens/query">
+    Check balances and info
+  </Card>
+</CardGroup>

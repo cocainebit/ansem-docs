@@ -1,0 +1,26 @@
+---
+title: 'Voting'
+description: 'Casting votes on yes/no and multi-option proposals'
+---
+
+# Voting
+
+## Cost
+
+Effectively free: a vote sends 1 `uchanse` (0.000001 CHANSE) plus normal gas.
+
+## Casting a vote
+
+**Website:** open the proposal and press Yes / No, or pick one option from the ballot. Tally bars update live.
+
+**Telegram:** open the proposal in [@chanseproposalbot](/telegram/overview) and tap the vote buttons; multi-option proposals show one button per option with live counts.
+
+## The rules that matter
+
+- **First vote wins.** One wallet, one vote per proposal; later votes from the same wallet are ignored. There is no vote changing.
+- **Strict ballots.** Yes/no votes on a multi-option proposal (and the reverse) are dropped at tally time rather than coerced.
+- **Every vote is public.** Votes are chain transactions; anyone can audit a tally by replaying the treasury's history.
+
+## Reading results
+
+Both surfaces show per-option counts and percentages, your own vote, and the proposal's age. Because tallies are recomputed from the chain, the website, the bot, and any indexer will always agree.

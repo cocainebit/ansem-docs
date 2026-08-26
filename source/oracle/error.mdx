@@ -1,0 +1,28 @@
+---
+title: 'error.rs'
+description: 'The typed errors this contract can return, and the conditions that trigger them.'
+---
+
+The typed errors this contract can return, and the conditions that trigger them.
+
+<Info>Live source from `contracts/oracle/src/error.rs` (18 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] StdError),
+
+    #[error("unauthorized: only the configured relayer can update the price")]
+    Unauthorized {},
+
+    #[error("invalid price: {reason}")]
+    InvalidPrice { reason: String },
+
+    #[error("no price data yet")]
+    NoPriceData {},
+}
+```

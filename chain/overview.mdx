@@ -1,0 +1,200 @@
+---
+title: 'Chain Overview'
+description: 'ansemchain specifications and configuration'
+---
+
+# Chain Overview
+
+ansemchain is a Proof of Stake Layer 1 with CosmWasm smart contracts and instant finality.
+
+## Chain Identity
+
+| Property | Value |
+|----------|-------|
+| Chain ID | `ansem-1` |
+| Binary Name | `ansemd` |
+| Address Prefix | `ansem` |
+| Validator Prefix | `ansemvaloper` |
+| Consensus Prefix | `ansemvalcons` |
+
+## Token Denomination
+
+| Property | Value |
+|----------|-------|
+| Base Denomination | `uchanse` |
+| Display Denomination | `CHANSE` |
+| Decimals | 6 |
+| Conversion | 1 CHANSE = 1,000,000 uchanse |
+
+### Examples
+
+```
+1 CHANSE        = 1,000,000 uchanse
+0.5 CHANSE      = 500,000 uchanse
+0.000001 CHANSE = 1 uchanse
+```
+
+<Note>
+All gas, staking, and fee amounts are in `uchanse` (micro CHANSE). The CLI automatically displays amounts in CHANSE for readability.
+</Note>
+
+### Second Denomination: ANSEM
+
+`uchanse` is not the only denom on the chain. **ANSEM** (base denom `uansem`, 6 decimals) is a second native coin: a bridged 1:1 voucher for the pump.fun ANSEM SPL token. It is tradeable and bridgeable like any coin, but it is **not** a gas or staking token, only CHANSE is used to pay fees and secure the chain.
+
+| Property | Value |
+|----------|-------|
+| Base Denomination | `uansem` |
+| Display Denomination | `ANSEM` |
+| Decimals | 6 |
+| Role | Bridged voucher (tradeable, non-gas, non-staking) |
+
+The bridge is multi-asset, with CHANSE as the priority asset; additional assets can be added over time.
+
+## Consensus
+
+ansemchain uses a Byzantine Fault Tolerant proof-of-stake consensus engine with instant finality.
+
+| Property | Value |
+|----------|-------|
+| Block Time | ~6 seconds |
+| Finality | Instant (1 block) |
+| Validators | Up to 100 |
+| BFT Threshold | 2/3 |
+
+## Genesis Configuration
+
+### Initial Accounts
+
+The genesis file includes three pre-configured accounts for development:
+
+| Account | Balance | Purpose |
+|---------|---------|---------|
+| `alice` | 1,000,000 CHANSE | Development, initial validator |
+| `bob` | 500,000 CHANSE | Faucet account |
+| `treasury` | 100,000,000 CHANSE | Future validator rewards |
+
+### Genesis Balances
+
+```json wrap
+{
+  "accounts": [
+    {
+      "name": "alice",
+      "coins": ["1000000000000uchanse"]
+    },
+    {
+      "name": "bob",
+      "coins": ["500000000000uchanse"]
+    },
+    {
+      "name": "treasury",
+      "coins": ["100000000000000uchanse"]
+    }
+  ]
+}
+```
+
+## Network Endpoints
+
+### Mainnet
+
+| Service | URL |
+|---------|-----|
+| RPC | `https://rpc.ansemchain.fun` |
+| REST | `https://rest.ansemchain.fun` |
+
+<Note>gRPC is available on a node you run yourself (port 9090); there is no public gRPC endpoint.</Note>
+
+### Local Development
+
+| Service | URL |
+|---------|-----|
+| RPC | `http://localhost:26657` |
+| REST | `http://localhost:1317` |
+| gRPC | `localhost:9090` |
+| Faucet | `http://localhost:4500` |
+
+## Running a Node
+
+### Full Node
+
+```bash wrap
+# Initialize node
+ansemd init my-node --chain-id ansem-1
+
+# Get genesis from an existing validator
+# Contact the team for the genesis file
+
+# Start node
+ansemd start
+```
+
+### Validator Node
+
+<Warning>
+Running a validator requires careful security practices. See our [Validator Guide](/chain/validators) for details.
+</Warning>
+
+```bash wrap
+# Create validator (after syncing)
+ansemd tx staking create-validator \
+  --amount=1000000uchanse \
+  --pubkey=$(ansemd tendermint show-validator) \
+  --moniker="my-validator" \
+  --commission-rate="0.10" \
+  --commission-max-rate="0.20" \
+  --commission-max-change-rate="0.01" \
+  --min-self-delegation="1" \
+  --from=my-key \
+  --chain-id=ansem-1
+```
+
+## Smart Contracts
+
+ansemchain supports CosmWasm smart contracts through the `x/wasm` module.
+
+### Supported Standards
+
+| Standard | Description |
+|----------|-------------|
+| CW20 | Fungible tokens (like ERC-20/SPL) |
+| CW721 | Non-fungible tokens (like ERC-721) |
+| CW1 | Proxy contracts |
+| CW3 | Multisig contracts |
+
+### Contract Limits
+
+| Limit | Value |
+|-------|-------|
+| Max Contract Size | 800 KB |
+| Max Gas Per Block | 75,000,000 |
+| Gas Multiplier | 100x |
+
+## Useful Commands
+
+### Query Chain Status
+
+```bash wrap
+# Get current block height
+ansemd status | jq '.SyncInfo.latest_block_height'
+
+# Get node info
+ansemd status | jq '.NodeInfo'
+
+# Check if node is syncing
+ansemd status | jq '.SyncInfo.catching_up'
+```
+
+### Query Module Params
+
+```bash wrap
+# Staking parameters
+ansemd query staking params
+
+# Governance parameters
+ansemd query gov params
+
+# Wasm parameters
+ansemd query wasm params
+```

@@ -1,0 +1,36 @@
+---
+title: 'Interactive Wallet'
+description: 'The full-screen terminal wallet'
+---
+
+# Interactive Wallet
+
+Running `ansem` with no arguments launches a full-screen **terminal wallet** - a guided, menu-driven interface for everything you'd do day to day:
+
+- Create a new wallet (24-word recovery phrase) or import an existing one (12 or 24 words)
+- View your address and live CHANSE balance
+- Send CHANSE to any `ansem1…` address
+- Receive - show your address as a scannable ASCII QR code
+
+Wallets are stored as encrypted JSON keystores (scrypt + AES-256-GCM) at `~/.ansem/keystore/`, the same place the CLI commands use. Your password never leaves your machine. Install the CLI first (see [Installation](/cli/installation)), then run it with no arguments:
+
+```bash wrap
+ansem
+```
+
+<Warning>
+**The interactive wallet is currently under maintenance.** While it's being updated, use the scriptable CLI commands - they perform all the same functions:
+
+| In the wallet | CLI command |
+|---|---|
+| Check balance | [`ansem balance <addr>`](/cli/balance) |
+| Create / import / list wallets | [`ansem keys add` / `import` / `list`](/cli/keys) |
+| Send CHANSE | [`ansem send …`](/cli/transactions) |
+| Network info | [`ansem status`](/cli/balance), [`ansem token`](/cli/balance) |
+
+The interactive wallet will return with the same capabilities - nothing is lost in the meantime.
+</Warning>
+
+## When it returns
+
+The interactive wallet and the CLI are the same tool (`ansem`) and share the same keystore, so wallets you create with `ansem keys add` today will be available in the interactive wallet once it's back.

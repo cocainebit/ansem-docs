@@ -1,0 +1,181 @@
+---
+title: 'Burn Tokens'
+description: 'Permanently destroy tokens from your balance'
+---
+
+# Burn Tokens
+
+The `ansem token burn` command permanently destroys tokens from your balance, reducing the total supply.
+
+## Usage
+
+```bash wrap
+ansem token burn <contract> <amount> --from <key>
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `contract` | Token contract address |
+| `amount` | Amount to burn (in smallest unit) |
+
+### Flags
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--from` | Your signing key | Yes |
+| `--dry-run` | Simulate only | No |
+
+## Examples
+
+### Basic Burn
+
+```bash wrap
+ansem token burn ansem1tokencontract... 1000000 --from mykey
+```
+
+### Dry Run
+
+```bash wrap
+ansem token burn ansem1tokencontract... 1000000 --from mykey --dry-run
+```
+
+Output:
+```
+Dry run mode - transaction not broadcast
+
+Estimated gas: 100,000
+Estimated fee: 1,000 uchanse
+
+Burn Details:
+  Token: ansem1tokencontract...
+  From: ansem1youraddress...
+  Amount: 1,000,000
+```
+
+## Output
+
+Successful burn:
+
+```
+Tokens Burned Successfully!
+
+Token:        ansem1tokencontract...
+Burned From:  ansem1youraddress...
+Amount:       1,000,000
+TxHash:       ABC123DEF456...
+Gas Used:     95678
+Block:        12345
+```
+
+## Verify Burn
+
+Check balance and total supply after burning:
+
+```bash wrap
+# Your balance (should be reduced)
+ansem token balance ansem1tokencontract... --key mykey
+
+# Total supply (should be reduced)
+ansem token info ansem1tokencontract...
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Deflationary Mechanics" icon="fire">
+    Reduce supply over time to increase scarcity
+  </Card>
+  <Card title="Token Buyback" icon="rotate-left">
+    Buy tokens from market and burn them
+  </Card>
+  <Card title="Error Correction" icon="bug">
+    Burn accidentally minted tokens
+  </Card>
+  <Card title="Bridge Burns" icon="bridge">
+    Burn when bridging to another chain
+  </Card>
+</CardGroup>
+
+## Amount Calculation
+
+Amount is in the token's smallest unit. For 6 decimals:
+
+| Display | Amount (base) |
+|---------|---------------|
+| 1 MTK | 1,000,000 |
+| 0.5 MTK | 500,000 |
+| 100 MTK | 100,000,000 |
+
+## Burn All Tokens
+
+To burn your entire balance:
+
+```bash wrap
+# Get current balance
+BALANCE=$(ansem token balance ansem1contract... --key mykey --output json | jq -r '.balance')
+
+# Burn all
+ansem token burn ansem1contract... $BALANCE --from mykey
+```
+
+## Error Handling
+
+| Error | Meaning | Solution |
+|-------|---------|----------|
+| "insufficient token balance" | Not enough tokens | Check balance first |
+| "contract not found" | Wrong contract address | Verify contract exists |
+
+### Check Balance Before Burn
+
+```bash wrap
+# Verify you have enough tokens
+ansem token balance ansem1contract... --key mykey
+```
+
+## Under the Hood
+
+`ansem token burn` executes a `MsgExecuteContract`:
+
+```json wrap
+{
+  "contract": "ansem1tokencontract...",
+  "msg": {
+    "burn": {
+      "amount": "1000000"
+    }
+  },
+  "funds": []
+}
+```
+
+## Burn vs BurnFrom
+
+CW20 has two burn methods:
+
+| Method | Who Burns | Requires |
+|--------|-----------|----------|
+| `burn` | Token holder | Just your tokens |
+| `burn_from` | Approved spender | Prior allowance |
+
+The `ansem token burn` command uses `burn` (burning your own tokens).
+
+<Warning>
+**Burning is irreversible!** Burned tokens are permanently destroyed and cannot be recovered.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Insufficient balance">
+    You can only burn tokens you own:
+    ```bash
+    ansem token balance ansem1contract... --key mykey
+    ```
+  </Accordion>
+
+  <Accordion title="Zero amount">
+    Amount must be greater than 0.
+  </Accordion>
+</AccordionGroup>

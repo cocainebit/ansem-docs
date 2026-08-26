@@ -1,0 +1,706 @@
+---
+title: 'contract.rs'
+description: 'The logic: the `instantiate`/`execute`/`query` entry points and every handler behind them.'
+---
+
+The logic: the `instantiate`/`execute`/`query` entry points and every handler behind them. This is where the rules actually run.
+
+<Info>Live source from `contracts/proposals/src/contract.rs` (696 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::{
+    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
+    Uint128,
+};
+use cw2::set_contract_version;
+use cw20::Cw20QueryMsg;
+
+use crate::error::ContractError;
+use crate::msg::*;
+use crate::state::*;
+
+const CONTRACT_NAME: &str = "crates.io:ansem-proposals";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+// ────────────────────────────────── Instantiate ──────────────────────────────
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    let launchpad_addr = deps.api.addr_validate(&msg.launchpad_contract)?;
+
+    let config = Config {
+        admin: info.sender,
+        launchpad_contract: launchpad_addr,
+        twitter_track_threshold: msg.twitter_track_threshold,
+        rename_approval_percent: msg.rename_approval_percent.unwrap_or(60),
+        rename_window_seconds: msg.rename_window_seconds.unwrap_or(86400),
+        general_voting_window_seconds: msg.general_voting_window_seconds.unwrap_or(86400),
+        general_min_balance_uchanse: msg.general_min_balance_uchanse.unwrap_or(1_000_000),
+    };
+
+    CONFIG.save(deps.storage, &config)?;
+    NEXT_PROPOSAL_ID.save(deps.storage, &1u64)?;
+
+    Ok(Response::new().add_attribute("action", "instantiate"))
+}
+
+// ────────────────────────────────── Execute ──────────────────────────────────
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    match msg {
+        ExecuteMsg::ProposeTwitterTrack { twitter_handle } => {
+            execute_propose_twitter_track(deps, env, info, twitter_handle)
+        }
+        ExecuteMsg::ProposeTokenRename {
+            token_address,
+            new_name,
+            new_symbol,
+            new_image,
+        } => execute_propose_token_rename(deps, env, info, token_address, new_name, new_symbol, new_image),
+        ExecuteMsg::ProposeGeneral { title, description } => {
+            execute_propose_general(deps, env, info, title, description)
+        }
+        ExecuteMsg::Vote { proposal_id, vote } => execute_vote(deps, env, info, proposal_id, vote),
+        ExecuteMsg::FinalizeRename {
+            proposal_id,
+            total_holders,
+        } => execute_finalize_rename(deps, env, info, proposal_id, total_holders),
+        ExecuteMsg::FinalizeGeneral { proposal_id } => {
+            execute_finalize_general(deps, env, info, proposal_id)
+        }
+        ExecuteMsg::ExpireProposal { proposal_id } => {
+            execute_expire_proposal(deps, info, proposal_id)
+        }
+        ExecuteMsg::RemoveTrackedHandle { handle } => {
+            execute_remove_tracked_handle(deps, info, handle)
+        }
+        ExecuteMsg::UpdateConfig {
+            twitter_track_threshold,
+            rename_approval_percent,
+            rename_window_seconds,
+            launchpad_contract,
+            general_voting_window_seconds,
+            general_min_balance_uchanse,
+        } => execute_update_config(
+            deps,
+            info,
+            twitter_track_threshold,
+            rename_approval_percent,
+            rename_window_seconds,
+            launchpad_contract,
+            general_voting_window_seconds,
+            general_min_balance_uchanse,
+        ),
+    }
+}
+
+fn execute_propose_twitter_track(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    twitter_handle: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // Only admin (bot relay) can create twitter track proposals
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Normalize handle — strip leading @
+    let handle = twitter_handle.trim_start_matches('@').to_lowercase();
+    if handle.is_empty() || handle.len() > 50 {
+        return Err(ContractError::InvalidHandle {
+            handle: twitter_handle,
+        });
+    }
+
+    // Check not already tracked
+    if TRACKED_HANDLES.has(deps.storage, &handle) {
+        return Err(ContractError::HandleAlreadyTracked { handle });
+    }
+
+    let id = NEXT_PROPOSAL_ID.load(deps.storage)?;
+    let proposal = Proposal {
+        id,
+        proposer: info.sender,
+        proposal_type: ProposalType::TwitterTrack {
+            handle: handle.clone(),
+        },
+        status: ProposalStatus::Active,
+        yes_votes: 0,
+        no_votes: 0,
+        created_at: env.block.time.seconds(),
+        created_height: env.block.height,
+    };
+
+    PROPOSALS.save(deps.storage, id, &proposal)?;
+    NEXT_PROPOSAL_ID.save(deps.storage, &(id + 1))?;
+
+    Ok(Response::new()
+        .add_attribute("action", "propose_twitter_track")
+        .add_attribute("proposal_id", id.to_string())
+        .add_attribute("handle", &handle))
+}
+
+fn execute_propose_token_rename(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_address: String,
+    new_name: String,
+    new_symbol: String,
+    new_image: String,
+) -> Result<Response, ContractError> {
+    if new_name.trim().is_empty() {
+        return Err(ContractError::EmptyName {});
+    }
+    if new_symbol.trim().is_empty() {
+        return Err(ContractError::EmptySymbol {});
+    }
+
+    let token_addr = deps.api.addr_validate(&token_address)?;
+
+    // Check proposer holds tokens
+    let balance: cw20::BalanceResponse = deps.querier.query_wasm_smart(
+        token_addr.to_string(),
+        &Cw20QueryMsg::Balance {
+            address: info.sender.to_string(),
+        },
+    )?;
+    if balance.balance.is_zero() {
+        return Err(ContractError::NoTokenBalance { token_address });
+    }
+
+    // Check no active rename for this token
+    if ACTIVE_RENAME.has(deps.storage, token_addr.as_str()) {
+        return Err(ContractError::ActiveRenameExists {
+            token_address: token_addr.to_string(),
+        });
+    }
+
+    let id = NEXT_PROPOSAL_ID.load(deps.storage)?;
+    let proposal = Proposal {
+        id,
+        proposer: info.sender,
+        proposal_type: ProposalType::TokenRename {
+            token_address: token_addr.to_string(),
+            new_name: new_name.clone(),
+            new_symbol: new_symbol.clone(),
+            new_image: new_image.clone(),
+        },
+        status: ProposalStatus::Active,
+        yes_votes: 0,
+        no_votes: 0,
+        created_at: env.block.time.seconds(),
+        created_height: env.block.height,
+    };
+
+    PROPOSALS.save(deps.storage, id, &proposal)?;
+    ACTIVE_RENAME.save(deps.storage, token_addr.as_str(), &id)?;
+    NEXT_PROPOSAL_ID.save(deps.storage, &(id + 1))?;
+
+    Ok(Response::new()
+        .add_attribute("action", "propose_token_rename")
+        .add_attribute("proposal_id", id.to_string())
+        .add_attribute("token_address", token_addr.as_str())
+        .add_attribute("new_name", &new_name)
+        .add_attribute("new_symbol", &new_symbol))
+}
+
+fn execute_vote(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+    vote: bool,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let mut proposal = PROPOSALS
+        .may_load(deps.storage, proposal_id)?
+        .ok_or(ContractError::ProposalNotFound { id: proposal_id })?;
+
+    if proposal.status != ProposalStatus::Active {
+        return Err(ContractError::ProposalNotActive {});
+    }
+
+    match &proposal.proposal_type {
+        ProposalType::TwitterTrack { .. } => {
+            // Bot relays votes — only admin can submit
+            if info.sender != config.admin {
+                return Err(ContractError::Unauthorized {});
+            }
+        }
+        ProposalType::TokenRename { token_address, .. } => {
+            // Voter must hold tokens
+            let balance: cw20::BalanceResponse = deps.querier.query_wasm_smart(
+                token_address.clone(),
+                &Cw20QueryMsg::Balance {
+                    address: info.sender.to_string(),
+                },
+            )?;
+            if balance.balance.is_zero() {
+                return Err(ContractError::NoTokenBalance {
+                    token_address: token_address.clone(),
+                });
+            }
+        }
+        ProposalType::General { .. } => {
+            // One-wallet-one-vote: must hold minimum CHANSE balance
+            let balance = deps.querier.query_balance(info.sender.clone(), "uchanse")?;
+            if balance.amount < Uint128::from(config.general_min_balance_uchanse) {
+                return Err(ContractError::InsufficientAnsemBalance {
+                    required: config.general_min_balance_uchanse,
+                    balance: balance.amount.u128() as u64,
+                });
+            }
+        }
+    }
+
+    // Check not already voted
+    let voter_key = (proposal_id, info.sender.as_str());
+    if VOTES.has(deps.storage, voter_key) {
+        return Err(ContractError::AlreadyVoted { id: proposal_id });
+    }
+
+    // Record vote
+    VOTES.save(deps.storage, voter_key, &vote)?;
+    if vote {
+        proposal.yes_votes += 1;
+    } else {
+        proposal.no_votes += 1;
+    }
+
+    // Auto-approve twitter track proposals at threshold
+    if let ProposalType::TwitterTrack { ref handle } = proposal.proposal_type {
+        if proposal.yes_votes >= config.twitter_track_threshold {
+            proposal.status = ProposalStatus::Approved;
+            TRACKED_HANDLES.save(deps.storage, handle, &proposal_id)?;
+        }
+    }
+
+    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "vote")
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_attribute("voter", info.sender.as_str())
+        .add_attribute("vote", vote.to_string())
+        .add_attribute("yes_votes", proposal.yes_votes.to_string())
+        .add_attribute("no_votes", proposal.no_votes.to_string())
+        .add_attribute("status", format!("{:?}", proposal.status)))
+}
+
+fn execute_finalize_rename(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+    total_holders: u32,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut proposal = PROPOSALS
+        .may_load(deps.storage, proposal_id)?
+        .ok_or(ContractError::ProposalNotFound { id: proposal_id })?;
+
+    if proposal.status != ProposalStatus::Active {
+        return Err(ContractError::ProposalNotActive {});
+    }
+
+    let (token_address, new_name, new_symbol, new_image) = match &proposal.proposal_type {
+        ProposalType::TokenRename {
+            token_address,
+            new_name,
+            new_symbol,
+            new_image,
+        } => (
+            token_address.clone(),
+            new_name.clone(),
+            new_symbol.clone(),
+            new_image.clone(),
+        ),
+        _ => return Err(ContractError::ProposalNotActive {}),
+    };
+
+    let required_votes = (total_holders as u64 * config.rename_approval_percent as u64) / 100;
+
+    if (proposal.yes_votes as u64) >= required_votes && required_votes > 0 {
+        proposal.status = ProposalStatus::Approved;
+
+        let display = DisplayOverride {
+            name: new_name,
+            symbol: new_symbol,
+            image: new_image,
+            set_by_proposal: proposal_id,
+            set_at: env.block.time.seconds(),
+        };
+        DISPLAY_REGISTRY.save(deps.storage, &token_address, &display)?;
+        ACTIVE_RENAME.remove(deps.storage, &token_address);
+    } else {
+        proposal.status = ProposalStatus::Rejected;
+        ACTIVE_RENAME.remove(deps.storage, &token_address);
+    }
+
+    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "finalize_rename")
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_attribute("status", format!("{:?}", proposal.status)))
+}
+
+fn execute_propose_general(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    title: String,
+    description: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // Check sender balance meets minimum
+    let balance = deps.querier.query_balance(info.sender.clone(), "uchanse")?;
+    if balance.amount < Uint128::from(config.general_min_balance_uchanse) {
+        return Err(ContractError::InsufficientAnsemBalance {
+            required: config.general_min_balance_uchanse,
+            balance: balance.amount.u128() as u64,
+        });
+    }
+
+    // Validate title and description
+    let title = title.trim().to_string();
+    let description = description.trim().to_string();
+    if title.is_empty() {
+        return Err(ContractError::EmptyName {});
+    }
+    if title.len() > 100 {
+        return Err(ContractError::TitleTooLong {});
+    }
+    if description.is_empty() {
+        return Err(ContractError::EmptyName {});
+    }
+    if description.len() > 500 {
+        return Err(ContractError::DescriptionTooLong {});
+    }
+
+    let id = NEXT_PROPOSAL_ID.load(deps.storage)?;
+    let proposal = Proposal {
+        id,
+        proposer: info.sender,
+        proposal_type: ProposalType::General {
+            title: title.clone(),
+            description: description.clone(),
+        },
+        status: ProposalStatus::Active,
+        yes_votes: 0,
+        no_votes: 0,
+        created_at: env.block.time.seconds(),
+        created_height: env.block.height,
+    };
+
+    PROPOSALS.save(deps.storage, id, &proposal)?;
+    NEXT_PROPOSAL_ID.save(deps.storage, &(id + 1))?;
+
+    Ok(Response::new()
+        .add_attribute("action", "propose_general")
+        .add_attribute("proposal_id", id.to_string())
+        .add_attribute("title", &title))
+}
+
+fn execute_finalize_general(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut proposal = PROPOSALS
+        .may_load(deps.storage, proposal_id)?
+        .ok_or(ContractError::ProposalNotFound { id: proposal_id })?;
+
+    if proposal.status != ProposalStatus::Active {
+        return Err(ContractError::ProposalNotActive {});
+    }
+
+    // Must be a General proposal
+    if !matches!(proposal.proposal_type, ProposalType::General { .. }) {
+        return Err(ContractError::ProposalNotActive {});
+    }
+
+    // Verify voting window has elapsed
+    let elapsed = env.block.time.seconds() - proposal.created_at;
+    if elapsed < config.general_voting_window_seconds {
+        return Err(ContractError::VotingWindowOpen {});
+    }
+
+    // Simple majority: yes > no → Approved, else Rejected
+    if proposal.yes_votes > proposal.no_votes {
+        proposal.status = ProposalStatus::Approved;
+    } else {
+        proposal.status = ProposalStatus::Rejected;
+    }
+
+    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "finalize_general")
+        .add_attribute("proposal_id", proposal_id.to_string())
+        .add_attribute("status", format!("{:?}", proposal.status)))
+}
+
+fn execute_expire_proposal(
+    deps: DepsMut,
+    info: MessageInfo,
+    proposal_id: u64,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut proposal = PROPOSALS
+        .may_load(deps.storage, proposal_id)?
+        .ok_or(ContractError::ProposalNotFound { id: proposal_id })?;
+
+    if proposal.status != ProposalStatus::Active {
+        return Err(ContractError::ProposalNotActive {});
+    }
+
+    proposal.status = ProposalStatus::Expired;
+
+    // Clean up active rename if applicable
+    if let ProposalType::TokenRename { ref token_address, .. } = proposal.proposal_type {
+        ACTIVE_RENAME.remove(deps.storage, token_address.as_str());
+    }
+
+    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "expire_proposal")
+        .add_attribute("proposal_id", proposal_id.to_string()))
+}
+
+fn execute_remove_tracked_handle(
+    deps: DepsMut,
+    info: MessageInfo,
+    handle: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let handle = handle.trim_start_matches('@').to_lowercase();
+    if !TRACKED_HANDLES.has(deps.storage, &handle) {
+        return Err(ContractError::HandleNotTracked {});
+    }
+
+    TRACKED_HANDLES.remove(deps.storage, &handle);
+
+    Ok(Response::new()
+        .add_attribute("action", "remove_tracked_handle")
+        .add_attribute("handle", &handle))
+}
+
+fn execute_update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    twitter_track_threshold: Option<u32>,
+    rename_approval_percent: Option<u32>,
+    rename_window_seconds: Option<u64>,
+    launchpad_contract: Option<String>,
+    general_voting_window_seconds: Option<u64>,
+    general_min_balance_uchanse: Option<u64>,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    if info.sender != config.admin {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(v) = twitter_track_threshold {
+        config.twitter_track_threshold = v;
+    }
+    if let Some(v) = rename_approval_percent {
+        config.rename_approval_percent = v;
+    }
+    if let Some(v) = rename_window_seconds {
+        config.rename_window_seconds = v;
+    }
+    if let Some(addr) = launchpad_contract {
+        config.launchpad_contract = deps.api.addr_validate(&addr)?;
+    }
+    if let Some(v) = general_voting_window_seconds {
+        config.general_voting_window_seconds = v;
+    }
+    if let Some(v) = general_min_balance_uchanse {
+        config.general_min_balance_uchanse = v;
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attribute("action", "update_config"))
+}
+
+// ────────────────────────────────── Query ────────────────────────────────────
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Proposal { id } => to_binary(&query_proposal(deps, id)?),
+        QueryMsg::Proposals {
+            status,
+            limit,
+            start_after,
+        } => to_binary(&query_proposals(deps, status, limit, start_after)?),
+        QueryMsg::Votes { proposal_id } => to_binary(&query_votes(deps, proposal_id)?),
+        QueryMsg::HasVoted { proposal_id, voter } => {
+            to_binary(&query_has_voted(deps, proposal_id, voter)?)
+        }
+        QueryMsg::DisplayOverride { token_address } => {
+            to_binary(&query_display_override(deps, token_address)?)
+        }
+        QueryMsg::AllDisplayOverrides {} => to_binary(&query_all_display_overrides(deps)?),
+        QueryMsg::TrackedHandles {} => to_binary(&query_tracked_handles(deps)?),
+        QueryMsg::RenameEligible { token_address } => {
+            to_binary(&query_rename_eligible(deps, token_address)?)
+        }
+    }
+}
+
+fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(ConfigResponse { config })
+}
+
+fn query_proposal(deps: Deps, id: u64) -> StdResult<ProposalResponse> {
+    let proposal = PROPOSALS.load(deps.storage, id)?;
+    Ok(ProposalResponse { proposal })
+}
+
+fn query_proposals(
+    deps: Deps,
+    status: Option<ProposalStatus>,
+    limit: Option<u32>,
+    start_after: Option<u64>,
+) -> StdResult<ProposalsResponse> {
+    let limit = limit.unwrap_or(20).min(100) as usize;
+    let start = start_after.map(|id| id + 1).unwrap_or(0);
+
+    let proposals: Vec<Proposal> = PROPOSALS
+        .range(deps.storage, Some(cw_storage_plus::Bound::inclusive(start)), None, Order::Ascending)
+        .filter_map(|item| {
+            let (_, p) = item.ok()?;
+            if let Some(ref s) = status {
+                if &p.status != s {
+                    return None;
+                }
+            }
+            Some(p)
+        })
+        .take(limit)
+        .collect();
+
+    Ok(ProposalsResponse { proposals })
+}
+
+fn query_votes(deps: Deps, proposal_id: u64) -> StdResult<VotesResponse> {
+    let votes: Vec<VoteInfo> = VOTES
+        .prefix(proposal_id)
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|item| {
+            let (voter, vote) = item.ok()?;
+            Some(VoteInfo { voter, vote })
+        })
+        .collect();
+
+    Ok(VotesResponse { votes })
+}
+
+fn query_has_voted(deps: Deps, proposal_id: u64, voter: String) -> StdResult<HasVotedResponse> {
+    let vote = VOTES.may_load(deps.storage, (proposal_id, &voter))?;
+    Ok(HasVotedResponse {
+        has_voted: vote.is_some(),
+        vote,
+    })
+}
+
+fn query_display_override(deps: Deps, token_address: String) -> StdResult<DisplayOverrideResponse> {
+    let override_info = DISPLAY_REGISTRY.may_load(deps.storage, &token_address)?;
+    Ok(DisplayOverrideResponse { override_info })
+}
+
+fn query_all_display_overrides(deps: Deps) -> StdResult<AllDisplayOverridesResponse> {
+    let overrides: Vec<DisplayOverrideEntry> = DISPLAY_REGISTRY
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|item| {
+            let (token_address, override_info) = item.ok()?;
+            Some(DisplayOverrideEntry {
+                token_address,
+                override_info,
+            })
+        })
+        .collect();
+
+    Ok(AllDisplayOverridesResponse { overrides })
+}
+
+fn query_tracked_handles(deps: Deps) -> StdResult<TrackedHandlesResponse> {
+    let handles: Vec<TrackedHandleEntry> = TRACKED_HANDLES
+        .range(deps.storage, None, None, Order::Ascending)
+        .filter_map(|item| {
+            let (handle, proposal_id) = item.ok()?;
+            Some(TrackedHandleEntry {
+                handle,
+                proposal_id,
+            })
+        })
+        .collect();
+
+    Ok(TrackedHandlesResponse { handles })
+}
+
+fn query_rename_eligible(deps: Deps, token_address: String) -> StdResult<RenameEligibleResponse> {
+    // Check if there's already an active rename
+    if ACTIVE_RENAME.has(deps.storage, &token_address) {
+        return Ok(RenameEligibleResponse {
+            eligible: false,
+            reason: Some("Token already has an active rename proposal".to_string()),
+        });
+    }
+
+    // Check if already renamed
+    if DISPLAY_REGISTRY.has(deps.storage, &token_address) {
+        return Ok(RenameEligibleResponse {
+            eligible: false,
+            reason: Some("Token has already been renamed".to_string()),
+        });
+    }
+
+    Ok(RenameEligibleResponse {
+        eligible: true,
+        reason: None,
+    })
+}
+```

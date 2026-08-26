@@ -1,0 +1,304 @@
+---
+title: 'Querying Contracts'
+description: 'Read contract state without transactions'
+---
+
+# Querying Contracts
+
+The `ansem program query` command reads contract state without submitting a transaction. Queries are free and instant.
+
+## Usage
+
+```bash wrap
+ansem program query <contract> <message> [options]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `contract` | Contract address |
+| `message` | JSON query or @file.json |
+
+## Basic Query
+
+```bash wrap
+ansem program query ansem1contract... '{"get_count":{}}'
+```
+
+Output:
+```json wrap
+{
+  "count": 42
+}
+```
+
+## Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--raw` | Compact JSON (no formatting) | false |
+| `--node` | RPC endpoint | config |
+
+## Query Formats
+
+### Inline JSON
+
+```bash wrap
+ansem program query ansem1contract... '{"get_count":{}}'
+```
+
+### With Parameters
+
+```bash wrap
+ansem program query ansem1contract... '{"get_balance":{"address":"ansem1user..."}}'
+```
+
+### From File
+
+```bash wrap
+# Create query file
+echo '{"get_balance":{"address":"ansem1user..."}}' > query.json
+
+# Query from file
+ansem program query ansem1contract... @query.json
+```
+
+## Output Formats
+
+### Pretty (Default)
+
+```bash wrap
+ansem program query ansem1contract... '{"token_info":{}}'
+```
+
+```json wrap
+{
+  "name": "My Token",
+  "symbol": "MTK",
+  "decimals": 6,
+  "total_supply": "1000000000000"
+}
+```
+
+### Raw (Compact)
+
+```bash wrap
+ansem program query ansem1contract... '{"token_info":{}}' --raw
+```
+
+```json wrap
+{"name":"My Token","symbol":"MTK","decimals":6,"total_supply":"1000000000000"}
+```
+
+Use `--raw` for piping to other tools:
+
+```bash wrap
+ansem program query ansem1contract... '{"token_info":{}}' --raw | jq '.total_supply'
+# "1000000000000"
+```
+
+## Common Query Patterns
+
+### Single Value
+
+```bash wrap
+# Get a counter value
+ansem program query ansem1contract... '{"get_count":{}}'
+```
+
+```json wrap
+{"count": 42}
+```
+
+### Address Parameter
+
+```bash wrap
+# Get balance for address
+ansem program query ansem1token... '{"balance":{"address":"ansem1user..."}}'
+```
+
+```json wrap
+{"balance": "1000000"}
+```
+
+### Paginated List
+
+```bash wrap
+# Get items with pagination
+ansem program query ansem1contract... '{"all_items":{"limit":10}}'
+```
+
+```json wrap
+{
+  "items": [
+    {"id": 1, "name": "Item 1"},
+    {"id": 2, "name": "Item 2"}
+  ]
+}
+```
+
+### With Start After
+
+```bash wrap
+# Get next page
+ansem program query ansem1contract... '{"all_items":{"start_after":"2","limit":10}}'
+```
+
+## CW20 Token Queries
+
+### Token Info
+
+```bash wrap
+ansem program query ansem1token... '{"token_info":{}}'
+```
+
+```json wrap
+{
+  "name": "My Token",
+  "symbol": "MTK",
+  "decimals": 6,
+  "total_supply": "1000000000000"
+}
+```
+
+### Balance
+
+```bash wrap
+ansem program query ansem1token... '{"balance":{"address":"ansem1user..."}}'
+```
+
+```json wrap
+{"balance": "1000000"}
+```
+
+### Minter
+
+```bash wrap
+ansem program query ansem1token... '{"minter":{}}'
+```
+
+```json wrap
+{
+  "minter": "ansem1minter...",
+  "cap": null
+}
+```
+
+### All Accounts
+
+```bash wrap
+ansem program query ansem1token... '{"all_accounts":{"limit":10}}'
+```
+
+```json wrap
+{
+  "accounts": [
+    "ansem1addr1...",
+    "ansem1addr2..."
+  ]
+}
+```
+
+## Scripting
+
+### Extract Value
+
+```bash wrap
+COUNT=$(ansem program query ansem1contract... '{"get_count":{}}' --raw | jq '.count')
+echo "Current count: $COUNT"
+```
+
+### Monitor State
+
+```bash wrap
+#!/bin/bash
+CONTRACT="ansem1contract..."
+
+while true; do
+  RESULT=$(ansem program query $CONTRACT '{"get_count":{}}' --raw)
+  COUNT=$(echo $RESULT | jq '.count')
+  echo "$(date): Count = $COUNT"
+  sleep 10
+done
+```
+
+### Conditional Logic
+
+```bash wrap
+#!/bin/bash
+BALANCE=$(ansem program query ansem1token... '{"balance":{"address":"ansem1user..."}}' --raw | jq -r '.balance')
+
+if [ "$BALANCE" -gt "1000000" ]; then
+  echo "Balance above threshold"
+else
+  echo "Balance below threshold"
+fi
+```
+
+## Query vs Execute
+
+| Aspect | Query | Execute |
+|--------|-------|---------|
+| State Change | No | Yes |
+| Transaction | No | Yes |
+| Gas Cost | Free | Paid |
+| Speed | Instant | Block time |
+
+```bash wrap
+# Query (free, instant) - reads state
+ansem program query ansem1contract... '{"get_count":{}}'
+
+# Execute (costs gas, waits for block) - modifies state
+ansem program execute ansem1contract... '{"increment":{}}' --from alice
+```
+
+## Error Handling
+
+### Contract Not Found
+
+```
+Error: contract not found at ansem1invalid...
+```
+
+### Invalid Query Message
+
+```
+Error: Generic error: query failed - unknown query variant
+```
+
+Check your contract's `QueryMsg` enum for valid query names.
+
+### Query Error from Contract
+
+```
+Error: Query error: item not found
+```
+
+The contract returned an error (e.g., querying non-existent item).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Unknown query variant">
+    Check your contract's QueryMsg:
+    ```rust
+    pub enum QueryMsg {
+        GetCount {},  // Use: {"get_count":{}}
+        GetItem { id: u64 },  // Use: {"get_item":{"id":1}}
+    }
+    ```
+    Note: Rust `GetCount` becomes JSON `get_count` (snake_case).
+  </Accordion>
+
+  <Accordion title="Invalid JSON">
+    Validate your query:
+    ```bash
+    echo '{"get_count":{}}' | jq .
+    ```
+  </Accordion>
+
+  <Accordion title="Empty response">
+    The contract may return empty for non-existent data. Check if the item exists first.
+  </Accordion>
+</AccordionGroup>

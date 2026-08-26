@@ -1,0 +1,131 @@
+---
+title: 'Swapping'
+description: 'How to swap tokens on the CHANSE AMM'
+---
+
+# Swapping
+
+You can swap between CHANSE and any graduated token on the AMM. Swaps execute instantly against the pool's reserves using the constant-product formula.
+
+## Swap CHANSE for Tokens
+
+To buy tokens with CHANSE:
+
+1. Navigate to the token's trading page
+2. Enter the amount of **CHANSE** you want to spend
+3. Review the estimated tokens you'll receive and price impact
+4. Click **Swap** and confirm in your wallet
+
+### Contract Message
+
+```json wrap
+{
+  "swap": {
+    "token_address": "<cw20_token_address>",
+    "offer_ansem": true,
+    "min_output": "1000000"
+  }
+}
+```
+
+**Funds**: `[{ "denom": "uchanse", "amount": "<ansem_to_swap>" }]`
+
+The `min_output` parameter protects against slippage -- the transaction reverts if you'd receive fewer tokens than specified.
+
+## Swap Tokens for CHANSE
+
+To sell tokens for CHANSE, the AMM uses the **CW20 Send** pattern. Instead of calling the AMM directly, you send tokens to the AMM contract with an encoded swap message:
+
+```json wrap
+// Sent to the CW20 TOKEN contract (not the AMM)
+{
+  "send": {
+    "contract": "<amm_contract_address>",
+    "amount": "1000000",
+    "msg": "<base64_encoded_message>"
+  }
+}
+```
+
+The inner message (before base64 encoding):
+
+```json wrap
+{
+  "min_output": "500000"
+}
+```
+
+<Tip>
+The TypeScript SDK handles the CW20 Send encoding automatically:
+```typescript wrap
+import { swapTokenForAnsem } from "@ansem-chain/sdk";
+
+await swapTokenForAnsem(contractClient, senderAddress, tokenAddress, tokenAmount, minOutput);
+```
+</Tip>
+
+## Simulating Swaps
+
+Preview any swap before executing:
+
+```json wrap
+{
+  "simulate_swap": {
+    "token_address": "<cw20_token_address>",
+    "offer_ansem": true,
+    "offer_amount": "1000000"
+  }
+}
+```
+
+Set `offer_ansem: true` for CHANSE to Token, `false` for Token to CHANSE.
+
+**Response:**
+
+```typescript wrap
+{
+  output_amount: string;         // Tokens or CHANSE you'd receive
+  fee_amount: string;            // Total fee deducted
+  price_impact: string;          // e.g. "0.53%"
+  augmented_fee_amount: string;  // Extra fee if active (0 otherwise)
+}
+```
+
+## Understanding Price Impact
+
+Price impact is the difference between the current market price and the effective price of your trade. It depends on trade size relative to pool depth:
+
+| Trade Size vs Pool | Typical Price Impact |
+|-------------------|---------------------|
+| < 0.1% of pool | < 0.1% |
+| 1% of pool | ~1% |
+| 5% of pool | ~5% |
+| 10% of pool | ~10% |
+
+<Warning>
+Large trades relative to pool size will have significant price impact. Consider splitting large orders into smaller trades.
+</Warning>
+
+## Fees
+
+| Fee | Rate | Where It Goes |
+|-----|------|--------------|
+| Base swap fee | 1% | Stays in pool (auto-compounds for LPs) |
+| Augmented fee | 0-5% | Stays in pool; auto-disables at target value |
+
+Fees are deducted from your input before the swap calculation.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Liquidity" icon="droplet" href="/amm/liquidity">
+    How LP tokens and pool mechanics work
+  </Card>
+  <Card title="AMM Overview" icon="arrow-right-arrow-left" href="/amm/overview">
+    Constant-product formula and pool basics
+  </Card>
+</CardGroup>
+
+## Max wallet
+
+The **2.25% max wallet** applies to AMM swaps exactly as it does on the bonding curve: a swap that would push the buyer's holdings above 2.25% of a token's supply is rejected by the contract. This is protocol-level whale protection, not a frontend rule.

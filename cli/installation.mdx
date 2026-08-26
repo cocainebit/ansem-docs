@@ -1,0 +1,102 @@
+---
+title: 'Installation'
+description: 'Install and run the ansem CLI'
+---
+
+# Installation
+
+`ansem` is the official command-line tool for ansemchain.
+
+## Quick start (no install)
+
+The fastest way in — run the terminal chain explorer straight from npm, nothing to download:
+
+```bash wrap
+npx @ansemchain/ansem
+```
+
+That launches the full-screen explorer (arrow keys switch tabs: overview, validators, blocks, transactions, holders, bridge, supply). For a one-shot summary instead of the UI:
+
+```bash wrap
+npx @ansemchain/ansem status
+```
+
+```
+chain ansem-1 · height 278340 · https://rpc.ansemchain.fun
+```
+
+By default it targets `https://rpc.ansemchain.fun` and `https://rest.ansemchain.fun`, no configuration needed. Pass `--rpc`/`--rest` to point at a localnet.
+
+<Note>
+The scriptable wallet commands below (key management, sending CHANSE) are a separate developer build installed from source. If you just want to read chain state, the `npx @ansemchain/ansem` explorer above is all you need.
+</Note>
+
+## Prerequisites
+
+- **Node.js 18+** - [Download](https://nodejs.org)
+- **git** - npm uses it to fetch the repo
+
+## Install
+
+```bash wrap
+git clone https://github.com/ansem-labs/ansem
+cd ansem
+npm install
+npm link
+```
+
+`npm link` puts a `ansem` command on your PATH. (You can skip it and run `node dist/cli.js <command>` from the clone instead.) Verify:
+
+```bash wrap
+ansem status
+```
+
+```
+chain ansem-1 · height 278340 · https://rpc.ansemchain.fun
+```
+
+If you see a chain id and a height, the CLI is talking to the live network. By default it targets `https://rpc.ansemchain.fun` and `https://rest.ansemchain.fun`, no configuration needed.
+
+### One-line install
+
+On most setups you can skip the clone:
+
+```bash wrap
+npm install -g github:ansem-labs/ansem
+```
+
+If `ansem` isn't found afterward (some npm versions mishandle global installs from a git source), use the clone method above.
+
+## Updating
+
+Pull the latest and relink:
+
+```bash wrap
+cd ansem && git pull && npm install && npm link
+```
+
+## Commands at a glance
+
+```bash wrap
+ansem balance <ansem1…>     # account balance
+ansem status                # chain id, height, reachability   (alias: ping)
+ansem token                 # the CHANSE token / mint info
+ansem keys list             # list saved wallets
+ansem keys add [label]      # create a new wallet
+ansem keys import [label]   # import a mnemonic
+ansem send --to <addr> --amount <n> [--from <label>] [--memo <m>]
+ansem --version | --help
+```
+
+Add `--json` to any command for machine-readable output.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Point the CLI at a different endpoint, or feed it credentials for scripts
+  </Card>
+  <Card title="Key Management" icon="key" href="/cli/keys">
+    Create, import, and list wallets
+  </Card>
+</CardGroup>

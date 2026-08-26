@@ -1,0 +1,307 @@
+---
+title: 'Contract Discovery'
+description: 'Find and inspect deployed contracts'
+---
+
+# Contract Discovery
+
+Find deployed contracts and inspect their details with `ansem program list` and `ansem program info`.
+
+## List Contracts
+
+List all contracts deployed from a specific code ID:
+
+```bash wrap
+ansem program list <code-id>
+```
+
+### Example
+
+```bash wrap
+ansem program list 1
+```
+
+Output:
+```
+Contracts from Code ID 1:
+
+ADDRESS                                           LABEL
+ansem1contract1abc123...                            My Token
+ansem1contract2def456...                            Test Token
+ansem1contract3ghi789...                            Reward Token
+```
+
+### Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--limit` | Max results | 10 |
+
+### With Custom Limit
+
+```bash wrap
+ansem program list 1 --limit 50
+```
+
+## Contract Info
+
+Get detailed information about a specific contract:
+
+```bash wrap
+ansem program info <contract-address>
+```
+
+### Example
+
+```bash wrap
+ansem program info ansem1contract123...
+```
+
+Output:
+```
+Contract Information
+
+Address:  ansem1contract123...
+Code ID:  1
+Label:    My Token
+Creator:  ansem1creator...
+Admin:    ansem1admin...
+Created:  Block 12345
+```
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--hash` | Include code hash |
+| `--history` | Show migration history |
+| `--json` | JSON output |
+
+### With Code Hash
+
+```bash wrap
+ansem program info ansem1contract... --hash
+```
+
+Output:
+```
+Contract Information
+
+Address:   ansem1contract123...
+Code ID:   1
+Code Hash: abc123def456...
+Label:     My Token
+Creator:   ansem1creator...
+Admin:     ansem1admin...
+Created:   Block 12345
+```
+
+### With History
+
+```bash wrap
+ansem program info ansem1contract... --history
+```
+
+Output:
+```
+Contract Information
+
+Address:  ansem1contract123...
+Code ID:  2
+Label:    My Token
+Creator:  ansem1creator...
+Admin:    ansem1admin...
+Created:  Block 12345
+
+Migration History:
+  Block 12345: Code 1 → Code 2 (upgrade to v2)
+  Block 10000: Initial deployment (Code 1)
+```
+
+### JSON Output
+
+```bash wrap
+ansem program info ansem1contract... --json
+```
+
+```json wrap
+{
+  "address": "ansem1contract123...",
+  "code_id": 1,
+  "label": "My Token",
+  "creator": "ansem1creator...",
+  "admin": "ansem1admin...",
+  "created_block": 12345
+}
+```
+
+## Using ansemd
+
+For more advanced queries:
+
+### List All Codes
+
+```bash wrap
+ansemd query wasm list-code --node https://rpc.ansemchain.fun
+```
+
+Output:
+```yaml wrap
+code_infos:
+- code_id: "1"
+  creator: ansem1creator...
+  data_hash: ABC123...
+  instantiate_permission:
+    permission: Everybody
+- code_id: "2"
+  creator: ansem1creator...
+  ...
+```
+
+### Contracts by Creator
+
+```bash wrap
+ansemd query wasm list-contracts-by-creator ansem1creator... --node https://rpc.ansemchain.fun
+```
+
+### Contract State (Raw)
+
+```bash wrap
+ansemd query wasm contract-state all ansem1contract... --node https://rpc.ansemchain.fun
+```
+
+## Discovery Workflow
+
+### Find Your Contracts
+
+1. List all codes you've uploaded:
+   ```bash
+   ansemd query wasm list-code --node https://rpc.ansemchain.fun | grep -A2 "creator: ansem1youraddress"
+   ```
+
+2. List contracts for each code:
+   ```bash
+   ansem program list <code-id>
+   ```
+
+3. Get details on specific contract:
+   ```bash
+   ansem program info ansem1contract...
+   ```
+
+### Find Contracts by Label
+
+```bash wrap
+# List all CW20 tokens
+ansem program list 1 --limit 100 | grep -i "token"
+```
+
+### Export Contract List
+
+```bash wrap
+# Export to JSON
+ansem program list 1 --limit 100 | while read addr label; do
+  echo "\"$addr\": \"$label\""
+done
+```
+
+## Contract Properties
+
+### Admin
+
+The admin can:
+- Migrate the contract to new code
+- Update the admin
+- Clear the admin (make immutable)
+
+```bash wrap
+ansem program info ansem1contract... | grep Admin
+```
+
+- `Admin: ansem1admin...` - Admin can migrate
+- `Admin: None - immutable` - No admin, cannot change
+
+### Code ID
+
+Identifies the contract code (bytecode):
+
+- Same code ID = same logic
+- Different instances can have different state
+- Upgrading changes the code ID
+
+### Creator
+
+The address that deployed the contract (cannot be changed).
+
+## Scripting Examples
+
+### List All Your Contracts
+
+```bash wrap
+#!/bin/bash
+MY_ADDRESS="ansem1myaddress..."
+
+# Get all codes
+for code_id in $(ansemd query wasm list-code --node https://rpc.ansemchain.fun -o json | jq -r '.code_infos[].code_id'); do
+  echo "=== Code ID: $code_id ==="
+  ansem program list $code_id --limit 100
+done
+```
+
+### Monitor Contract Info
+
+```bash wrap
+#!/bin/bash
+CONTRACT="ansem1contract..."
+
+while true; do
+  echo "=== $(date) ==="
+  ansem program info $CONTRACT
+  sleep 60
+done
+```
+
+### Verify Contract Code
+
+```bash wrap
+#!/bin/bash
+CONTRACT="ansem1contract..."
+EXPECTED_HASH="abc123def456..."
+
+ACTUAL_HASH=$(ansem program info $CONTRACT --hash --json | jq -r '.code_hash')
+
+if [ "$ACTUAL_HASH" = "$EXPECTED_HASH" ]; then
+  echo "✓ Code hash verified"
+else
+  echo "✗ Code hash mismatch!"
+  echo "  Expected: $EXPECTED_HASH"
+  echo "  Actual:   $ACTUAL_HASH"
+fi
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No contracts found">
+    The code ID may have no instances:
+    ```bash
+    # Verify code exists
+    ansemd query wasm code 1 --node https://rpc.ansemchain.fun
+    ```
+  </Accordion>
+
+  <Accordion title="Contract not found">
+    Verify the address is correct:
+    ```bash
+    # Address should start with ansem1
+    # And be the correct length
+    ```
+  </Accordion>
+
+  <Accordion title="Pagination">
+    If you have many contracts, use pagination:
+    ```bash
+    ansem program list 1 --limit 100
+    ```
+  </Accordion>
+</AccordionGroup>

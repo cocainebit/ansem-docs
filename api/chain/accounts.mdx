@@ -1,0 +1,85 @@
+---
+title: 'Accounts'
+description: 'Query account info, sequence numbers, and authentication details'
+---
+
+# Accounts
+
+Every address on ansemchain has an associated account that tracks its sequence number (nonce), public key, and account number. These are needed for signing transactions.
+
+## Get Account
+
+Retrieve account details for an address.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/auth/v1beta1/accounts/ansem1abc123...
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "account": {
+    "@type": "/cosmos.auth.v1beta1.BaseAccount",
+    "address": "ansem1abc123...",
+    "pub_key": {
+      "@type": "/cosmos.crypto.secp256k1.PubKey",
+      "key": "A1B2C3..."
+    },
+    "account_number": "42",
+    "sequence": "15"
+  }
+}
+```
+</Accordion>
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `address` | The bech32-encoded address (prefix `ansem`) |
+| `pub_key` | The public key, set after the account's first transaction |
+| `account_number` | Unique identifier assigned when the account first receives funds. Used for transaction signing. |
+| `sequence` | Transaction counter (nonce). Increments with each successful transaction. Used to prevent replay attacks. |
+
+<Note>
+`pub_key` is `null` for accounts that have received tokens but never sent a transaction. The public key is recorded on-chain with the first outgoing transaction.
+</Note>
+
+### Using Account Info for Signing
+
+When building a transaction, you need `account_number` and `sequence` from this endpoint:
+
+```typescript wrap
+const account = await fetch(
+  'https://rest.ansemchain.fun/cosmos/auth/v1beta1/accounts/ansem1...'
+).then(r => r.json());
+
+const signerInfo = {
+  accountNumber: account.account.account_number,
+  sequence: account.account.sequence,
+};
+```
+
+If `sequence` is stale (another transaction was confirmed since your query), the transaction will fail with `code: 32` (account sequence mismatch). Re-query and retry.
+
+## List All Accounts
+
+Returns all accounts on the chain. Paginated.
+
+```bash wrap
+curl "https://rest.ansemchain.fun/cosmos/auth/v1beta1/accounts?pagination.limit=10"
+```
+
+<Warning>
+This can return a large number of results on mainnet. Always use pagination parameters.
+</Warning>
+
+## Account Types
+
+| `@type` | Description |
+|---------|-------------|
+| `/cosmos.auth.v1beta1.BaseAccount` | Standard user account |
+| `/cosmos.auth.v1beta1.ModuleAccount` | System module account (e.g., bridge, distribution) |
+| `/cosmos.vesting.v1beta1.ContinuousVestingAccount` | Account with vesting schedule |
+
+Module accounts are system-owned and cannot be controlled by external keys. They appear in queries for the bridge module, fee pool, and other on-chain mechanisms.

@@ -1,0 +1,295 @@
+---
+title: 'tests.rs'
+description: 'Unit tests exercising the contract''s logic.'
+---
+
+Unit tests exercising the contract's logic.
+
+<Info>Live source from `contracts/vesting/src/tests.rs` (285 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use super::*;
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ScheduleResponse};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::{from_binary, Addr, Binary, Timestamp, Uint128};
+
+const TOKEN: &str = "cw20-mytoken";
+const BENEFICIARY: &str = "beneficiary";
+const LAUNCHPAD: &str = "launchpad";
+
+const T0: u64 = 1_700_000_000;
+const ONE_DAY: u64 = 86_400;
+const TOTAL: u128 = 100_000_000_000; // 100,000 TOKEN at 6 decimals
+
+fn init(
+    start: u64,
+    cliff: u64,
+    end: u64,
+) -> cosmwasm_std::OwnedDeps<
+    cosmwasm_std::MemoryStorage,
+    cosmwasm_std::testing::MockApi,
+    cosmwasm_std::testing::MockQuerier,
+> {
+    let mut deps = mock_dependencies();
+    let info = mock_info(LAUNCHPAD, &[]);
+    contract::instantiate(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        InstantiateMsg {
+            token: TOKEN.into(),
+            beneficiary: BENEFICIARY.into(),
+            start_time: start,
+            cliff_time: cliff,
+            end_time: end,
+        },
+    )
+    .unwrap();
+    deps
+}
+
+fn env_at(now: u64) -> cosmwasm_std::Env {
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(now);
+    env
+}
+
+fn fund(
+    deps: &mut cosmwasm_std::OwnedDeps<
+        cosmwasm_std::MemoryStorage,
+        cosmwasm_std::testing::MockApi,
+        cosmwasm_std::testing::MockQuerier,
+    >,
+    amount: u128,
+    sender: &str,
+) -> Result<cosmwasm_std::Response, crate::error::ContractError> {
+    let info = mock_info(sender, &[]);
+    contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        ExecuteMsg::Receive(crate::msg::Cw20ReceiveMsg {
+            sender: LAUNCHPAD.into(),
+            amount: Uint128::from(amount),
+            msg: Binary::default(),
+        }),
+    )
+}
+
+fn schedule(
+    deps: &cosmwasm_std::OwnedDeps<
+        cosmwasm_std::MemoryStorage,
+        cosmwasm_std::testing::MockApi,
+        cosmwasm_std::testing::MockQuerier,
+    >,
+    now: u64,
+) -> ScheduleResponse {
+    let bin = contract::query(deps.as_ref(), env_at(now), QueryMsg::Schedule {}).unwrap();
+    from_binary(&bin).unwrap()
+}
+
+#[test]
+fn instantiate_rejects_backward_schedule() {
+    let mut deps = mock_dependencies();
+    let info = mock_info(LAUNCHPAD, &[]);
+    let err = contract::instantiate(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        InstantiateMsg {
+            token: TOKEN.into(),
+            beneficiary: BENEFICIARY.into(),
+            start_time: T0 + 10,
+            cliff_time: T0 + 10,
+            end_time: T0,
+        },
+    )
+    .unwrap_err();
+    matches!(err, crate::error::ContractError::InvalidSchedule { .. });
+}
+
+#[test]
+fn instantiate_rejects_cliff_outside_window() {
+    let mut deps = mock_dependencies();
+    let info = mock_info(LAUNCHPAD, &[]);
+    let err = contract::instantiate(
+        deps.as_mut(),
+        mock_env(),
+        info,
+        InstantiateMsg {
+            token: TOKEN.into(),
+            beneficiary: BENEFICIARY.into(),
+            start_time: T0,
+            cliff_time: T0 - 1,
+            end_time: T0 + 10,
+        },
+    )
+    .unwrap_err();
+    matches!(err, crate::error::ContractError::InvalidSchedule { .. });
+}
+
+#[test]
+fn fund_requires_cw20_sender() {
+    let mut deps = init(T0, T0 + ONE_DAY, T0 + 10 * ONE_DAY);
+    let err = fund(&mut deps, TOTAL, "imposter").unwrap_err();
+    matches!(err, crate::error::ContractError::FundingTokenMismatch { .. });
+}
+
+#[test]
+fn fund_is_one_shot() {
+    let mut deps = init(T0, T0 + ONE_DAY, T0 + 10 * ONE_DAY);
+    fund(&mut deps, TOTAL, TOKEN).unwrap();
+    let err = fund(&mut deps, TOTAL, TOKEN).unwrap_err();
+    matches!(err, crate::error::ContractError::AlreadyFunded {});
+}
+
+#[test]
+fn vesting_curve_basic() {
+    // 1-day cliff, then linear over 10 days.
+    let start = T0;
+    let cliff = T0 + ONE_DAY;
+    let end = T0 + 11 * ONE_DAY;
+    let mut deps = init(start, cliff, end);
+    fund(&mut deps, TOTAL, TOKEN).unwrap();
+
+    // Before cliff: nothing vested.
+    assert_eq!(schedule(&deps, start - 1).vested, Uint128::zero());
+    assert_eq!(schedule(&deps, start).vested, Uint128::zero());
+    assert_eq!(schedule(&deps, cliff - 1).vested, Uint128::zero());
+
+    // At cliff: 1 day out of 11 = ~9.09% unlocked.
+    let v_at_cliff = schedule(&deps, cliff).vested.u128();
+    let expected_at_cliff = TOTAL * (ONE_DAY as u128) / (11 * ONE_DAY as u128);
+    assert_eq!(v_at_cliff, expected_at_cliff);
+
+    // Halfway through window: ~50% (actually 5.5/11 = 50%).
+    let mid = start + ((end - start) / 2);
+    let v_mid = schedule(&deps, mid).vested.u128();
+    let expected_mid = TOTAL * ((mid - start) as u128) / ((end - start) as u128);
+    assert_eq!(v_mid, expected_mid);
+
+    // At end: fully vested.
+    assert_eq!(schedule(&deps, end).vested, Uint128::from(TOTAL));
+    // After end: still TOTAL, never decreasing.
+    assert_eq!(schedule(&deps, end + ONE_DAY).vested, Uint128::from(TOTAL));
+}
+
+#[test]
+fn claim_releases_unlocked_amount() {
+    let start = T0;
+    let cliff = T0 + ONE_DAY;
+    let end = T0 + 11 * ONE_DAY;
+    let mut deps = init(start, cliff, end);
+    fund(&mut deps, TOTAL, TOKEN).unwrap();
+
+    // Beneficiary claims at the cliff. Should release the cliff slice.
+    let res = contract::execute(
+        deps.as_mut(),
+        env_at(cliff),
+        mock_info(BENEFICIARY, &[]),
+        ExecuteMsg::Claim {},
+    )
+    .unwrap();
+    let amt_attr = res
+        .attributes
+        .iter()
+        .find(|a| a.key == "amount")
+        .unwrap()
+        .value
+        .clone();
+    let claimed: u128 = amt_attr.parse().unwrap();
+    let expected = TOTAL * (ONE_DAY as u128) / ((end - start) as u128);
+    assert_eq!(claimed, expected);
+
+    // The transfer message goes to the CW20 token contract.
+    assert_eq!(res.messages.len(), 1);
+
+    // Claiming again immediately after: nothing more unlocked, error.
+    let err = contract::execute(
+        deps.as_mut(),
+        env_at(cliff),
+        mock_info(BENEFICIARY, &[]),
+        ExecuteMsg::Claim {},
+    )
+    .unwrap_err();
+    matches!(err, crate::error::ContractError::NothingToClaim {});
+
+    // Fast-forward to end. Remaining (total - released) becomes claimable.
+    let res2 = contract::execute(
+        deps.as_mut(),
+        env_at(end + 1),
+        mock_info(BENEFICIARY, &[]),
+        ExecuteMsg::Claim {},
+    )
+    .unwrap();
+    let amt2: u128 = res2
+        .attributes
+        .iter()
+        .find(|a| a.key == "amount")
+        .unwrap()
+        .value
+        .parse()
+        .unwrap();
+    assert_eq!(amt2, TOTAL - expected);
+
+    // Query schedule afterwards: nothing left claimable, released == total.
+    let s = schedule(&deps, end + 1);
+    assert_eq!(s.released, Uint128::from(TOTAL));
+    assert_eq!(s.claimable, Uint128::zero());
+}
+
+#[test]
+fn claim_requires_beneficiary() {
+    let mut deps = init(T0, T0, T0 + ONE_DAY);
+    fund(&mut deps, TOTAL, TOKEN).unwrap();
+    let err = contract::execute(
+        deps.as_mut(),
+        env_at(T0 + ONE_DAY),
+        mock_info("not-beneficiary", &[]),
+        ExecuteMsg::Claim {},
+    )
+    .unwrap_err();
+    matches!(err, crate::error::ContractError::Unauthorized {});
+}
+
+#[test]
+fn claim_before_funding_rejected() {
+    let mut deps = init(T0, T0, T0 + ONE_DAY);
+    let err = contract::execute(
+        deps.as_mut(),
+        env_at(T0 + ONE_DAY),
+        mock_info(BENEFICIARY, &[]),
+        ExecuteMsg::Claim {},
+    )
+    .unwrap_err();
+    matches!(err, crate::error::ContractError::NotFunded {});
+}
+
+#[test]
+fn cliff_equals_end_is_pure_cliff_drop() {
+    // No linear region: everything unlocks at end_time as a single drop.
+    let mut deps = init(T0, T0 + 10 * ONE_DAY, T0 + 10 * ONE_DAY);
+    fund(&mut deps, TOTAL, TOKEN).unwrap();
+    assert_eq!(schedule(&deps, T0).vested, Uint128::zero());
+    assert_eq!(
+        schedule(&deps, T0 + 10 * ONE_DAY - 1).vested,
+        Uint128::zero()
+    );
+    assert_eq!(
+        schedule(&deps, T0 + 10 * ONE_DAY).vested,
+        Uint128::from(TOTAL)
+    );
+}
+
+#[test]
+fn no_cliff_is_pure_linear() {
+    // cliff_time == start_time: linear from the start.
+    let start = T0;
+    let end = T0 + 10 * ONE_DAY;
+    let mut deps = init(start, start, end);
+    fund(&mut deps, TOTAL, TOKEN).unwrap();
+    let mid = start + (end - start) / 2;
+    let v = schedule(&deps, mid).vested.u128();
+    assert_eq!(v, TOTAL / 2);
+}
+```

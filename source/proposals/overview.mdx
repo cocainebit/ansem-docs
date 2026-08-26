@@ -1,0 +1,22 @@
+---
+title: 'Proposals'
+description: 'On-chain community proposals and voting.'
+---
+
+The proposals contract is the on-chain home for community decisions. Anyone meeting the minimum-balance bar can open a proposal, and holders vote on it within a time window.
+
+## Proposal types
+
+- **`ProposeGeneral`** — a free-form proposal with a voting window.
+- **`ProposeTwitterTrack`** — propose a Twitter/X account for the project to track.
+- **`ProposeTokenRename`** — propose renaming a token, gated by a higher approval threshold.
+
+## Voting
+
+- Holders cast a yes/no `Vote`.
+- Each proposal type has its own configurable **voting window** and, where relevant, an **approval percentage** (e.g. `rename_approval_percent`) and a **minimum CHANSE balance** to participate (`general_min_balance_uchanse`), which keeps dust wallets from spamming votes.
+- Tallies are computed on-chain from the recorded votes.
+
+## Interface
+
+The propose/vote/query messages and their configurable thresholds are in `msg.rs`; tallying and window enforcement are in `contract.rs`.

@@ -1,0 +1,40 @@
+---
+title: 'error.rs'
+description: 'The typed errors this contract can return, and the conditions that trigger them.'
+---
+
+The typed errors this contract can return, and the conditions that trigger them.
+
+<Info>Live source from `contracts/names/src/error.rs` (30 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] StdError),
+
+    #[error("Unauthorized")]
+    Unauthorized {},
+
+    #[error("Name {name} already registered")]
+    NameTaken { name: String },
+
+    #[error("Name {name} not registered")]
+    NameNotFound { name: String },
+
+    #[error("Invalid name: {reason}")]
+    InvalidName { reason: String },
+
+    #[error("Insufficient funds: required {required} uchanse, sent {sent}")]
+    InsufficientFunds { required: u128, sent: u128 },
+
+    #[error("Oracle price unavailable")]
+    OracleUnavailable {},
+
+    #[error("Invalid config: {reason}")]
+    InvalidConfig { reason: String },
+}
+```

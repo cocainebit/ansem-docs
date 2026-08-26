@@ -1,0 +1,301 @@
+---
+title: 'Building Contracts'
+description: 'Compile Rust contracts to optimized WebAssembly'
+---
+
+# Building Contracts
+
+The `ansem program build` command compiles your Rust contract to optimized WebAssembly (Wasm).
+
+## Usage
+
+```bash wrap
+ansem program build [options]
+```
+
+Run this command from your contract project directory (where `Cargo.toml` is located).
+
+## Build Methods
+
+### Docker Build (Default)
+
+Uses the official CosmWasm optimizer for reproducible builds:
+
+```bash wrap
+ansem program build
+```
+
+<Accordion title="Output">
+```
+Building contract with cosmwasm/optimizer:0.16.0...
+
+Building crates for wasm target...
+Creating intermediate artifacts...
+Post-processing artifacts...
+Optimizing artifacts...
+
+Optimized:
+  my_contract.wasm (185 KB)
+
+Output: artifacts/my_contract.wasm
+```
+</Accordion>
+
+**Advantages:**
+- Reproducible builds (same output every time)
+- Optimized for size
+- Production-ready
+
+**Requirements:**
+- Docker installed and running
+
+### Local Build
+
+Uses your local Rust toolchain:
+
+```bash wrap
+ansem program build --local
+```
+
+<Accordion title="Output">
+```
+Building with local cargo...
+
+   Compiling my-contract v0.1.0 (/path/to/my-contract)
+    Finished release [optimized] target(s) in 12.34s
+
+Output: target/wasm32-unknown-unknown/release/my_contract.wasm (450 KB)
+```
+</Accordion>
+
+**Advantages:**
+- Faster iteration
+- No Docker required
+
+**Disadvantages:**
+- Larger file size
+- Not reproducible
+
+**Requirements:**
+- Rust with `wasm32-unknown-unknown` target:
+  ```bash
+  rustup target add wasm32-unknown-unknown
+  ```
+
+## Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--local` | Use local cargo instead of Docker | false |
+| `--output` | Output directory | `artifacts/` |
+
+## Output Location
+
+### Docker Build
+
+```
+artifacts/my_contract.wasm
+```
+
+### Local Build
+
+```
+target/wasm32-unknown-unknown/release/my_contract.wasm
+```
+
+## Size Comparison
+
+| Build Method | Typical Size |
+|--------------|--------------|
+| Docker (optimized) | 150-200 KB |
+| Local (unoptimized) | 400-600 KB |
+
+<Note>
+ansemchain has a maximum contract size of 800 KB. Both methods typically produce contracts well under this limit.
+</Note>
+
+## Build Process
+
+### Docker Build Flow
+
+```
+┌─────────────────┐
+│   Source Code   │
+│   (src/*.rs)    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ cosmwasm/       │
+│ optimizer:0.16.0│
+│ (Docker)        │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+┌───────┐ ┌───────┐
+│ Build │ │Optimize│
+│ Wasm  │ │ Size   │
+└───┬───┘ └───┬───┘
+    │         │
+    └────┬────┘
+         │
+         ▼
+┌─────────────────┐
+│artifacts/       │
+│my_contract.wasm │
+│    (optimized)  │
+└─────────────────┘
+```
+
+### Local Build Flow
+
+```
+┌─────────────────┐
+│   Source Code   │
+│   (src/*.rs)    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ cargo build     │
+│ --release       │
+│ --target wasm32 │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│target/wasm32.../│
+│my_contract.wasm │
+│  (unoptimized)  │
+└─────────────────┘
+```
+
+## Development Workflow
+
+### Fast Iteration (Local)
+
+For quick development cycles:
+
+```bash wrap
+# Build locally (faster)
+ansem program build --local
+
+# Deploy to local network
+ansem program deploy target/wasm32-unknown-unknown/release/my_contract.wasm --from alice
+```
+
+### Production (Docker)
+
+For deployments:
+
+```bash wrap
+# Build with optimizer (reproducible)
+ansem program build
+
+# Deploy
+ansem program deploy artifacts/my_contract.wasm --from alice
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Docker not found">
+    Install Docker from https://docker.com or use local build:
+    ```bash
+    ansem program build --local
+    ```
+  </Accordion>
+
+  <Accordion title="Cargo.toml not found">
+    Run the command from your project root:
+    ```bash
+    cd my-contract
+    ansem program build
+    ```
+  </Accordion>
+
+  <Accordion title="wasm32 target not installed">
+    Install the Wasm target:
+    ```bash
+    rustup target add wasm32-unknown-unknown
+    ```
+  </Accordion>
+
+  <Accordion title="Build fails with errors">
+    Check your Rust code compiles:
+    ```bash
+    cargo check
+    ```
+    Fix any errors before building for Wasm.
+  </Accordion>
+
+  <Accordion title="Contract too large">
+    - Use Docker build (smaller output)
+    - Remove unused dependencies
+    - Optimize code for size
+  </Accordion>
+</AccordionGroup>
+
+## Verifying Builds
+
+### Check File Size
+
+```bash wrap
+ls -lh artifacts/my_contract.wasm
+# -rw-r--r-- 1 user staff 185K Jan 29 10:00 my_contract.wasm
+```
+
+### Verify Wasm Format
+
+```bash wrap
+file artifacts/my_contract.wasm
+# artifacts/my_contract.wasm: WebAssembly (wasm) binary module version 0x1 (MVP)
+```
+
+### Check Code Hash
+
+For reproducible builds, verify the hash:
+
+```bash wrap
+sha256sum artifacts/my_contract.wasm
+# abc123def456... artifacts/my_contract.wasm
+```
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml wrap
+name: Build Contract
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build with optimizer
+        run: |
+          docker run --rm -v "$(pwd)":/code \
+            --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+            --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+            cosmwasm/optimizer:0.16.0
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: contract
+          path: artifacts/my_contract.wasm
+```
+
+## Next Steps
+
+After building:
+
+```bash wrap
+# Deploy to local network
+ansem program deploy artifacts/my_contract.wasm --from alice --label "My Contract"
+```

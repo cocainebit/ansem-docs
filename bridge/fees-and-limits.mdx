@@ -1,0 +1,97 @@
+---
+title: 'Fees & Limits'
+description: 'Per-asset limits, approval thresholds, and gas fee requirements for the Ansem Bridge'
+---
+
+# Fees & Limits
+
+The Ansem Bridge has no bridging fees -- you receive the exact amount you deposit or withdraw. You pay standard gas fees on each chain, and **per-asset** limits apply to deposits and withdrawals.
+
+## Bridging Fees
+
+| Fee Type | Amount |
+|----------|--------|
+| Bridge fee | **None** (0%) |
+| Deposit fee | **None** |
+| Withdrawal fee | **None** |
+
+You receive exactly the amount you bridge, minus only the gas fees for the transactions on each chain.
+
+## Gas Requirements
+
+You need gas tokens on each chain to execute bridge transactions. On ansemchain the gas token is always **CHANSE**, regardless of which asset you are bridging.
+
+### Deposit (Solana to ansemchain)
+
+| Requirement | Details |
+|-------------|---------|
+| SOL for Solana tx | Sponsored by the relayer (no cost to user) |
+| Account creation | First-time `UserAccount` rent also sponsored by the relayer (`register_sponsored`) |
+
+Deposits are gasless: you can bridge in from a wallet with zero SOL. If the sponsor is briefly rate-limited, the bridge falls back to a self-paid transaction (then a tiny SOL balance is needed). See [Deposit](/bridge/deposit#no-sol-required-gasless-deposits).
+
+### Withdraw (ansemchain to Solana)
+
+| Requirement | Details |
+|-------------|---------|
+| CHANSE for chain tx | ~0.01 CHANSE for the withdrawal transaction on ansemchain (CHANSE is the gas token even when withdrawing ANSEM) |
+| SOL for Solana tx | Paid by the relayer (no cost to user) |
+
+<Tip>
+The withdrawal UI automatically reserves a small CHANSE buffer for gas when you click "Max".
+</Tip>
+
+## Per-Asset Limits
+
+Each bridged asset is configured independently in the `x/bridge` module as a `BridgeAsset`. These are the fields that govern how much can move and when an admin must step in:
+
+| Field | Applies to | Meaning |
+|-------|-----------|---------|
+| `max_mint_per_tx` | Deposits | Largest amount minted from a single deposit for this asset |
+| `max_burn_per_tx` | Withdrawals | Largest amount in a single withdrawal for this asset |
+| `admin_approval_threshold` | Withdrawals | Withdrawals above this amount go to `pending_approval` and require an admin `ApproveBurn` |
+| `enabled` | Both | Whether this asset can currently be bridged at all |
+
+Every asset has its own values for each field. A limit that applies to CHANSE says nothing about ANSEM, and governance can tune each asset separately.
+
+### Current Assets
+
+| Asset | denom | Solana SPL mint | Notes |
+|-------|-------|-----------------|-------|
+| CHANSE | `uchanse` | Configured at deploy | Priority asset (`assets[0]`) |
+| ANSEM | `uansem` | `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump` | 1:1 with the pump.fun mint |
+
+<Note>
+The exact numeric values for `max_mint_per_tx`, `max_burn_per_tx`, and `admin_approval_threshold` are governance parameters and can change per asset. The Bridge UI displays the live limit for whichever asset you select.
+</Note>
+
+### Module-Wide Limit
+
+| Parameter | Value | Controlled By |
+|-----------|-------|---------------|
+| `max_burns_per_block` | Caps how many withdrawals settle per block (across all assets) | Governance proposal |
+
+## Why a large withdrawal needs approval
+
+Withdrawals above an asset's `admin_approval_threshold` are not rejected -- they are held in `pending_approval` until an admin calls `ApproveBurn`, after which the relayer releases funds on Solana as normal. This is a safety control on unusually large outflows. Amounts at or below the threshold process automatically. To avoid the wait, keep each withdrawal at or below the threshold.
+
+## Processing Time
+
+| Step | Typical Duration |
+|------|-----------------|
+| Deposit (Solana to ansemchain) | ~30 seconds |
+| Withdrawal, auto-approved (ansemchain to Solana) | ~20-30 seconds |
+| Withdrawal above threshold | ~30 seconds + admin approval time |
+
+Processing time includes network confirmation, finality waiting for deposits, and relayer execution.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deposit" icon="arrow-down" href="/bridge/deposit">
+    Bridge an asset from Solana to ansemchain
+  </Card>
+  <Card title="Withdraw" icon="arrow-up" href="/bridge/withdraw">
+    Bridge an asset from ansemchain to Solana
+  </Card>
+</CardGroup>

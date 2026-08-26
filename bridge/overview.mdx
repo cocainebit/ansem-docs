@@ -1,0 +1,127 @@
+---
+title: 'Bridge Overview'
+description: 'Transfer CHANSE, ANSEM, and other supported assets between Solana and ansemchain'
+---
+
+# Ansem Bridge
+
+The Ansem Bridge enables cross-chain transfers between Solana and ansemchain. It uses a **Pool Bridge** architecture with a custom Anchor program on Solana (the `ansem-bridge` program) plus the `x/bridge` module on ansemchain, ensuring proper custody and supply conservation across both chains.
+
+The bridge is **multi-asset**: a single bridge moves several tokens, each with its own pool vault on Solana and its own native denom on ansemchain.
+
+## Supported Assets
+
+| Asset | ansemchain denom | Solana SPL mint | Notes |
+|-------|------------------|-----------------|-------|
+| **CHANSE** | `uchanse` | Configured at deploy | Priority asset (index 0). Native gas and staking token on ansemchain. |
+| **ANSEM** | `uansem` | `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump` | 1:1 with the pump.fun SPL mint. |
+
+Both mints are **SPL Token-2022** mints. The bridge and app handle the Token-2022 associated-token-account derivation for you.
+
+Additional assets can be added over time through governance. **CHANSE is the priority asset (`assets[0]`)**: any bridge message that leaves the denom empty resolves to CHANSE.
+
+## How It Works
+
+The bridge operates through per-asset liquidity pools on Solana and the `x/bridge` module on ansemchain:
+
+- **Deposit** (Solana to ansemchain) -- Lock an SPL token in its pool vault, mint the matching denom on ansemchain (the CHANSE mint mints `uchanse`, the ANSEM mint mints `uansem`)
+- **Withdraw** (ansemchain to Solana) -- Escrow the native denom on ansemchain, release the matching SPL from that asset's pool vault on Solana
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                        SOLANA                            │
+│                                                          │
+│   ansem-bridge program (Anchor)                          │
+│   ├── BridgePool  per mint (admin, relayer, vault)       │
+│   ├── UserAccount per wallet (owner, ansem_chain_address)│
+│   ├── pool_vault[CHANSE mint]  holds deposited CHANSE     │
+│   └── pool_vault[ANSEM mint]   holds deposited ANSEM      │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+                            │
+                     Relayer Service
+                            │
+┌─────────────────────────────────────────────────────────┐
+│                       ANSEMCHAIN                          │
+│                                                          │
+│   x/bridge module   (Params.assets[]: uchanse, uansem)    │
+│   ├── MsgMintFromBridge     (relayer-controlled)          │
+│   ├── MsgBurnForBridgeOut   (user-initiated, escrows)     │
+│   ├── ApproveBurn           (admin, large withdrawals)    │
+│   └── MsgUpdateBurnStatus   (relayer: completed / failed) │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Per-Asset Configuration (`assets[]`)
+
+The `x/bridge` module keeps a list of assets in its parameters. Each entry (`BridgeAsset`) configures one token end to end:
+
+| Field | Meaning |
+|-------|---------|
+| `solana_mint` | The SPL mint on Solana this denom bridges to |
+| `denom` | The native ansemchain denom (`uchanse`, `uansem`, ...) |
+| `max_mint_per_tx` | Cap on a single deposit-driven mint |
+| `max_burn_per_tx` | Cap on a single withdrawal burn |
+| `admin_approval_threshold` | Withdrawals above this amount require an admin `ApproveBurn` |
+| `enabled` | Whether this asset can currently be bridged |
+
+Module-wide params (`bridge_enabled`, `relayer_address`, `admin_address`, `max_burns_per_block`) apply across all assets. `assets[0]` is CHANSE, the priority asset; a message with an empty denom resolves to it.
+
+## Supply Conservation
+
+The bridge maintains a strict invariant **per denom** -- no tokens are created or destroyed in transit. ansemchain mints only what is locked in the corresponding vault, and a per-denom `BridgeMintedSupply` tracks it:
+
+```
+For each asset:
+  Solana Circulating + Pool Vault (that mint) + ansemchain Supply (that denom) = constant
+```
+
+| Direction | Solana Circulating | Pool Vault (that mint) | ansemchain Supply (that denom) |
+|-----------|-------------------|------------------------|--------------------------------|
+| Before deposit | X | V | S |
+| After deposit | X - amount | V + amount | S + amount |
+| After withdraw | X + amount | V - amount | S - amount |
+
+The total of each asset across both chains never changes.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Multi-Asset" icon="layer-group">
+    One bridge moves CHANSE, ANSEM, and any future governance-added asset, each with its own vault and denom.
+  </Card>
+  <Card title="Self-Custody" icon="lock">
+    Deposited tokens sit in an auditable on-chain pool vault per mint, not a centralized treasury.
+  </Card>
+  <Card title="User-Initiated Burns" icon="fire">
+    You sign your own withdrawal on ansemchain -- the relayer cannot move your funds.
+  </Card>
+  <Card title="Per-Asset Limits" icon="gauge">
+    Governance sets `max_mint_per_tx`, `max_burn_per_tx`, and an `admin_approval_threshold` for each asset.
+  </Card>
+</CardGroup>
+
+## Supported Wallets
+
+| Chain | Supported Wallets |
+|-------|-------------------|
+| Solana | Phantom, Solflare, and other Solana Wallet Adapter-compatible wallets |
+| ansemchain | Keplr, Leap, Ansem Wallet |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deposit" icon="arrow-down" href="/bridge/deposit">
+    Transfer CHANSE or ANSEM from Solana to ansemchain
+  </Card>
+  <Card title="Withdraw" icon="arrow-up" href="/bridge/withdraw">
+    Transfer an asset from ansemchain back to Solana
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/bridge/architecture">
+    Technical deep-dive into the bridge system
+  </Card>
+  <Card title="Fees & Limits" icon="coins" href="/bridge/fees-and-limits">
+    Per-asset limits, approval thresholds, and gas requirements
+  </Card>
+</CardGroup>

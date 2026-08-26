@@ -1,0 +1,106 @@
+---
+title: 'List Tokens'
+description: 'Get all indexed tokens with metadata, prices, and 24h volume'
+---
+
+# List Tokens
+
+Returns all tokens that have been created on the Launchpad or indexed from AMM trading. Each token includes its current price, CHANSE reserves, 24-hour volume, and graduation status.
+
+## Endpoint
+
+```
+GET /api/tokens
+```
+
+## Request
+
+No parameters required.
+
+```bash wrap
+curl https://api.ansemchain.fun/api/tokens
+```
+
+## Response
+
+```json wrap
+{
+  "tokens": [
+    {
+      "address": "ansem1cw20contractaddress...",
+      "name": "Example Token",
+      "symbol": "EXT",
+      "image": "https://...",
+      "description": "An example token launched on CHANSE",
+      "creator": "ansem1creatoraddress...",
+      "source": "launchpad",
+      "graduated": true,
+      "ansem_reserves": "5200000000000",
+      "current_price": "52000",
+      "volume_24h": "1500000000000",
+      "trade_count_24h": 342,
+      "created_at": "2026-02-10T08:00:00.000Z",
+      "first_seen_at": "2026-02-10T08:00:15.000Z"
+    },
+    {
+      "address": "ansem1anothertoken...",
+      "name": "Meme Coin",
+      "symbol": "MEME",
+      "image": null,
+      "description": null,
+      "creator": "ansem1someuser...",
+      "source": "launchpad",
+      "graduated": false,
+      "ansem_reserves": "320000000000",
+      "current_price": "3200",
+      "volume_24h": "50000000000",
+      "trade_count_24h": 18,
+      "created_at": "2026-02-18T14:00:00.000Z",
+      "first_seen_at": "2026-02-18T14:00:10.000Z"
+    }
+  ]
+}
+```
+
+## Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `address` | string | CW20 contract address of the token |
+| `name` | string \| null | Token name (set at creation) |
+| `symbol` | string \| null | Token ticker symbol |
+| `image` | string \| null | Token image URL |
+| `description` | string \| null | Token description |
+| `creator` | string \| null | Address that created the token |
+| `source` | string | Where the token originated: `"launchpad"` or `"amm"` |
+| `graduated` | boolean | `true` if the token has graduated from bonding curve to AMM |
+| `ansem_reserves` | string | Current CHANSE reserves in `uchanse`. For bonding curve tokens, this is the curve's reserve. For graduated tokens, this reflects the last known AMM pool reserve. |
+| `current_price` | string | Latest trade price in `uchanse` per token, scaled by 10^6. Divide by 10^6 to get price in `uchanse`. |
+| `volume_24h` | string | Total trading volume in `uchanse` over the last 24 hours |
+| `trade_count_24h` | number | Number of trades in the last 24 hours |
+| `created_at` | string \| null | Token creation timestamp (from on-chain event) |
+| `first_seen_at` | string | When the indexer first observed this token |
+
+### Understanding Prices
+
+Prices are stored as integers scaled by 10^6 to avoid floating-point precision issues:
+
+```
+current_price = "52000"  →  52000 / 10^6 = 0.052 uchanse per micro-token
+                         →  0.052 CHANSE per token (since both have 6 decimals)
+```
+
+### Understanding Reserves
+
+For tokens still on the bonding curve, `ansem_reserves` indicates how close the token is to graduation:
+
+```
+Graduation threshold is dynamic per token (computed from oracle CHANSE/USD price).
+Query the launchpad contract's "progress" endpoint for exact threshold.
+Current reserves:  3200000000000 uchanse
+Progress: reserves / threshold = percentage toward graduation
+```
+
+## Ordering
+
+Tokens are returned ordered by `first_seen_at` descending (newest first).

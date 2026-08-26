@@ -1,0 +1,114 @@
+---
+title: 'Balances'
+description: 'Query native token balances and total supply'
+---
+
+# Balances
+
+Query native token balances (`uchanse`) for any address, or check the total circulating supply on ansemchain.
+
+## Get All Balances
+
+Returns all native token balances for an address.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1abc123...
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "balances": [
+    {
+      "denom": "uchanse",
+      "amount": "5000000000"
+    }
+  ],
+  "pagination": {
+    "next_key": null,
+    "total": "1"
+  }
+}
+```
+</Accordion>
+
+### Understanding Denominations
+
+| Denomination | Meaning | Conversion |
+|-------------|---------|------------|
+| `uchanse` | Micro-CHANSE (base unit) | 1 CHANSE = 1,000,000 uchanse |
+
+All amounts are returned in `uchanse`. To convert to human-readable CHANSE, divide by 1,000,000.
+
+```
+5000000000 uchanse = 5,000 CHANSE
+```
+
+## Get Balance for Specific Denom
+
+Query balance for a single denomination (faster if you only need `uchanse`).
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1abc123.../by_denom?denom=uchanse
+```
+
+```json wrap
+{
+  "balance": {
+    "denom": "uchanse",
+    "amount": "5000000000"
+  }
+}
+```
+
+## Get Spendable Balances
+
+Returns balances that are available to spend (excludes locked, vesting, or delegated tokens).
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/spendable_balances/ansem1abc123...
+```
+
+This is useful when you need to know how much a user can actually transfer or use for gas fees.
+
+## Total Supply
+
+Get the total supply of all denominations on the chain.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/supply
+```
+
+```json wrap
+{
+  "supply": [
+    {
+      "denom": "uchanse",
+      "amount": "150000000000000"
+    }
+  ],
+  "pagination": {
+    "next_key": null,
+    "total": "1"
+  }
+}
+```
+
+### Supply of a Specific Denom
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/supply/by_denom?denom=uchanse
+```
+
+```json wrap
+{
+  "amount": {
+    "denom": "uchanse",
+    "amount": "150000000000000"
+  }
+}
+```
+
+<Note>
+The total supply on ansemchain reflects only the tokens that have been bridged from Solana. Since the chain has zero inflation, supply only changes through bridge mint/burn operations.
+</Note>

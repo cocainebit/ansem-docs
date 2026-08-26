@@ -1,0 +1,122 @@
+---
+title: 'Candles'
+description: 'OHLCV candlestick data for charting token price history'
+---
+
+# Candles
+
+Returns OHLCV (Open, High, Low, Close, Volume) candlestick data for any token. Powered by TimescaleDB continuous aggregates that automatically roll up raw trades into 1-minute, 5-minute, 1-hour, and 1-day buckets.
+
+## Endpoint
+
+```
+GET /api/candles/:tokenAddress
+```
+
+## Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `tokenAddress` | string | CW20 contract address of the token |
+
+## Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `timeframe` | string | `"1h"` | Candle interval: `"1m"`, `"5m"`, `"1h"`, `"1d"` |
+| `from` | string | 24h ago | Start time (ISO 8601 with timezone, e.g., `2026-02-18T00:00:00Z`) |
+| `to` | string | now | End time (ISO 8601 with timezone) |
+| `limit` | number | 300 | Maximum candles to return (1-1000) |
+
+## Examples
+
+```bash wrap
+# Last 24 hours of 1-hour candles (default)
+curl https://api.ansemchain.fun/api/candles/ansem1cw20contract...
+
+# Last 7 days of daily candles
+curl "https://api.ansemchain.fun/api/candles/ansem1cw20contract...?timeframe=1d&from=2026-02-12T00:00:00Z"
+
+# Last 2 hours of 5-minute candles
+curl "https://api.ansemchain.fun/api/candles/ansem1cw20contract...?timeframe=5m&from=2026-02-19T08:00:00Z&limit=24"
+```
+
+## Response
+
+```json wrap
+{
+  "token_address": "ansem1cw20contract...",
+  "timeframe": "1h",
+  "candles": [
+    {
+      "time": "2026-02-19T08:00:00.000Z",
+      "open": "50000",
+      "high": "55000",
+      "low": "48000",
+      "close": "52000",
+      "volume": "250000000000",
+      "trade_count": 47
+    },
+    {
+      "time": "2026-02-19T09:00:00.000Z",
+      "open": "52000",
+      "high": "58000",
+      "low": "51000",
+      "close": "56000",
+      "volume": "180000000000",
+      "trade_count": 31
+    }
+  ]
+}
+```
+
+## Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `time` | string | Start of the candle period (ISO 8601) |
+| `open` | string | Price at the start of the period (uchanse per token, scaled by 10^6) |
+| `high` | string | Highest price during the period |
+| `low` | string | Lowest price during the period |
+| `close` | string | Price at the end of the period |
+| `volume` | string | Total CHANSE trading volume during the period (in `uchanse`) |
+| `trade_count` | number | Number of trades during the period |
+
+### Price Conversion
+
+All price values are in `uchanse` per token, scaled by 10^6:
+
+```
+"close": "52000"  →  52000 / 10^6 = 0.052 uchanse per micro-token
+                  →  0.052 CHANSE per token
+```
+
+### Volume Conversion
+
+Volume is in `uchanse`:
+
+```
+"volume": "250000000000"  →  250000000000 / 10^6 = 250,000 CHANSE
+```
+
+## Timeframe Details
+
+| Timeframe | Bucket Size | Best For | Data Retention |
+|-----------|-------------|----------|----------------|
+| `1m` | 1 minute | Scalping, live charts | 90 days |
+| `5m` | 5 minutes | Short-term trading | 90 days |
+| `1h` | 1 hour | Daily analysis | 90 days |
+| `1d` | 1 day | Long-term trends | 90 days |
+
+Candles are computed from raw trades using TimescaleDB continuous aggregates. They auto-refresh as new trades come in - there is no delay beyond the ~5 second indexing lag.
+
+<Note>
+Periods with no trades will be missing from the response (no zero-volume candles). If you need a continuous series for charting, fill gaps client-side using the previous candle's close price.
+</Note>
+
+## Errors
+
+| Status | Condition |
+|--------|-----------|
+| `400` | Invalid query parameters (bad timeframe, unparseable date, limit out of range) |
+| `500` | Internal server error |

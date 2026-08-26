@@ -1,0 +1,185 @@
+---
+title: 'Wallet Integration'
+description: 'Connect Keplr, Leap, and Ansem Wallet in browser dApps'
+---
+
+# Wallet Integration
+
+The SDK supports three browser wallets (Keplr, Leap, Ansem Wallet) and a mnemonic-based connection for development. All return a standard `WalletConnection` interface.
+
+## Wallet Modal (Recommended)
+
+The easiest way to connect a wallet in a browser dApp. Shows a selection dialog with all available wallets:
+
+```typescript wrap
+import { showWalletModal } from "@ansem-chain/sdk";
+
+const wallet = await showWalletModal({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+  restEndpoint: "https://rest.ansemchain.fun",  // Optional
+  chainId: "ansem-1",                              // Optional
+  suggestChain: true,                            // Auto-register chain in wallet
+});
+
+if (wallet) {
+  console.log("Connected:", wallet.type);     // "keplr" | "leap" | "ansem"
+  console.log("Address:", wallet.address);    // "ansem1..."
+  // wallet.signer is ready for signing
+}
+```
+
+The modal automatically detects which wallets are installed and only shows available options.
+
+## Individual Wallet Connections
+
+Connect to a specific wallet directly:
+
+### Keplr
+
+```typescript wrap
+import { connectKeplr } from "@ansem-chain/sdk";
+
+const wallet = await connectKeplr({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+  restEndpoint: "https://rest.ansemchain.fun",
+  chainId: "ansem-1",
+  suggestChain: true,  // Register ansemchain in Keplr if not already added
+});
+
+console.log(wallet.address);
+```
+
+### Leap
+
+```typescript wrap
+import { connectLeap } from "@ansem-chain/sdk";
+
+const wallet = await connectLeap({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+  restEndpoint: "https://rest.ansemchain.fun",
+  suggestChain: true,
+});
+```
+
+### Ansem Wallet
+
+```typescript wrap
+import { connectAnsem } from "@ansem-chain/sdk";
+
+const wallet = await connectAnsem({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+  restEndpoint: "https://rest.ansemchain.fun",
+  suggestChain: true,
+});
+```
+
+## Wallet Detection
+
+Check which wallets are available before connecting:
+
+```typescript wrap
+import {
+  isKeplrAvailable,
+  isLeapAvailable,
+  isAnsemAvailable,
+  getAvailableWallets,
+} from "@ansem-chain/sdk";
+
+if (isKeplrAvailable()) {
+  console.log("Keplr extension detected");
+}
+
+if (isLeapAvailable()) {
+  console.log("Leap extension detected");
+}
+
+if (isAnsemAvailable()) {
+  console.log("Ansem Wallet extension detected");
+}
+
+// Get all available wallet types
+const wallets = getAvailableWallets();
+// ["keplr", "leap", "ansem"] -- only includes installed wallets
+```
+
+## Direct Connection (Development)
+
+For Node.js scripts, tests, and development, connect with a mnemonic:
+
+```typescript wrap
+import { connectDirect } from "@ansem-chain/sdk";
+
+const wallet = await connectDirect({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+  chainId: "ansem-1",
+  mnemonic: "your twelve word mnemonic phrase ...",
+  prefix: "ansem",
+});
+```
+
+<Warning>
+Never use `connectDirect` in production browser code. Mnemonics should only be used in server-side scripts and development environments.
+</Warning>
+
+## WalletConnection Interface
+
+All connection methods return the same interface:
+
+```typescript wrap
+interface WalletConnection {
+  type: "keplr" | "leap" | "ansem" | "direct";
+  address: string;          // The connected ansem1... address
+  signer: OfflineSigner;    // CosmJS signer for transactions
+  disconnect(): void;       // Clean up connection
+}
+```
+
+Use `wallet.signer` with `createContractClient()` or other SDK transaction functions:
+
+```typescript wrap
+import { createContractClient, executeContract } from "@ansem-chain/sdk";
+
+const contractClient = await createContractClient(
+  { rpcEndpoint: "https://rpc.ansemchain.fun" },
+  wallet
+);
+
+await executeContract(
+  contractClient,
+  wallet.address,
+  "ansem1...contract",
+  { some_action: {} }
+);
+```
+
+## Chain Registration
+
+When `suggestChain: true` is set, the SDK automatically registers ansemchain in the wallet if it hasn't been added before. This uses the chain info from the SDK:
+
+```typescript wrap
+import { getAnsemChainInfo } from "@ansem-chain/sdk";
+
+const chainInfo = getAnsemChainInfo();
+// Returns full chain registration info (chainId, bech32 prefix, currencies, etc.)
+```
+
+## Disconnecting
+
+Always clean up wallet connections when done:
+
+```typescript wrap
+wallet.disconnect();
+```
+
+In React applications, call `disconnect()` in cleanup effects or when the user logs out.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transactions" icon="paper-plane" href="/sdk/transactions">
+    Sign and broadcast transactions
+  </Card>
+  <Card title="Queries" icon="magnifying-glass" href="/sdk/queries">
+    Read chain data without a wallet
+  </Card>
+</CardGroup>

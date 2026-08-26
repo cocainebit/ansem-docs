@@ -1,0 +1,15 @@
+/* ansem docs theme */
+:root {
+  --ansem-paper: #f3f6f1;
+  --ansem-green: #1f9e40;
+}
+body, .mintlify-content { background-color: var(--ansem-paper); }
+code, pre, .font-mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* Navbar logo: larger, with rounded corners (~12px) */
+.nav-logo {
+  height: 2.5rem !important;
+  width: auto !important;
+  max-width: none !important;
+  border-radius: 12px;
+}

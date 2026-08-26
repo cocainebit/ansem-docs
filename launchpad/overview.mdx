@@ -1,0 +1,57 @@
+---
+title: 'Launchpad Overview'
+description: 'Launch and trade tokens on bonding curves that graduate into locked-liquidity AMM pools'
+---
+
+# The Ansem Launchpad
+
+The launchpad is where new tokens are born on ansemchain. Every token follows the same lifecycle:
+
+1. **Create** - anyone can launch a token by paying the creation fee. The full supply is minted up front; nobody can ever mint more.
+2. **Bonding curve** - the token trades on an automated curve. Price starts low and rises deterministically as people buy.
+3. **Graduation** - once the token reaches its target market cap, the curve closes and the raised CHANSE plus the reserved supply become a permanent AMM pool.
+4. **Open trading** - the token trades freely on the AMM. The seeded liquidity is locked forever.
+
+## The numbers
+
+| Parameter | Value |
+|---|---|
+| Token supply | 100,000 tokens (fixed, 6 decimals) |
+| Starting market cap | Low; set by the curve's virtual reserves |
+| Graduation trigger | Dynamic target market cap (oracle-based, with an optional fixed CHANSE override) |
+| Graduation raise | Set by the target; ≈ 25,700 CHANSE with default parameters |
+| Price appreciation on the curve | Rises deterministically from first buy to graduation |
+| Supply sold on the curve | 79.31% (79,310 tokens) |
+| Supply reserved for the AMM pool | 20.69% (20,690 tokens) |
+| Buy fee | 0.5% |
+| Sell fee | 3.5% |
+| Fee destination | 100% into the token's liquidity |
+| Max wallet | 2.25% of supply (2,250 tokens), enforced on chain |
+
+## Quote denomination
+
+A launch is denominated in **CHANSE** (`uchanse`) by default: the curve raises CHANSE, and the graduated pool is quoted in CHANSE. A launch can instead be denominated in **ANSEM** (`uansem`, the bridged voucher), where the curve and pool use ANSEM as the quote side. ANSEM-denominated launches are supported but skip the presale and USD-oracle features, which are wired only for CHANSE. ANSEM is not a gas token; gas stays in CHANSE either way.
+
+## No price cliff at graduation
+
+The curve parameters are chosen so the AMM pool opens at exactly the price the curve ended at. Late curve buyers do not get diluted by the pool opening below their entry, a common failure mode on other launchpads.
+
+## Whale protection is protocol-level
+
+No wallet can hold more than **2.25% of any token's supply**. This is enforced by the launchpad contract on every curve buy and by the AMM contract on every swap. It is not a frontend rule and cannot be bypassed by trading against the contracts directly.
+
+## Asymmetric fees
+
+Buys pay 0.5%, sells pay 3.5%. The asymmetry discourages instant dumping and rewards holding. Every fee stays in the token's own liquidity: into the curve's reserves while bonding, then into the locked AMM pool after graduation. There is no creator cut and no protocol cut.
+
+## No vampire launches
+
+A token's name and ticker are claimed on-chain at creation. The same (normalized) name or symbol **cannot be relaunched while it is in use**, and stays locked for a cooldown period afterward, enforced by the launchpad contract. This shuts down the copycat and "vampire" launches that fracture a community across duplicate tickers and turn a launch into PvP between near-identical tokens. One ticker, one live token.
+
+## Community-governed tokens
+
+A token isn't controlled by an insider after launch. Holders steer it through on-chain **token proposals**: anyone can submit a proposal, and votes are tallied on chain (including multi-option ballots). It's how a community decides direction instead of a single deployer. See [Proposals](/proposals/overview) for how submission and voting work.
+
+<Card title="Create your first token" icon="rocket" href="/launchpad/create-token">
+  Step-by-step guide to launching a token
+</Card>

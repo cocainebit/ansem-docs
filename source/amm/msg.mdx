@@ -1,0 +1,246 @@
+---
+title: 'msg.rs'
+description: 'The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type.'
+---
+
+The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type. This is the contract's API surface, what you can call and what comes back.
+
+<Info>Live source from `contracts/amm/src/msg.rs` (236 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, Uint128};
+
+#[cw_serde]
+pub struct MigrateMsg {
+    /// Add an address to authorized creators list
+    pub add_authorized_creator: Option<String>,
+    /// Remove an address from authorized creators list
+    pub remove_authorized_creator: Option<String>,
+    /// Set max wallet holding in basis points of token total supply
+    pub max_wallet_bps: Option<u16>,
+}
+
+#[cw_serde]
+pub struct InstantiateMsg {
+    /// Addresses authorized to create pools (bonding curve + tokenlaunch module)
+    pub authorized_creators: Vec<String>,
+    /// Swap fee in basis points (100 = 1%). Fixed globally.
+    pub swap_fee_bps: u16,
+    /// Max wallet holding in basis points of token total supply (300 = 3%). 0 = disabled.
+    pub max_wallet_bps: u16,
+}
+
+#[cw_serde]
+pub enum ExecuteMsg {
+    /// Create a new pool (internal - only authorized creators)
+    /// Called when a token graduates from bonding curve or by tokenlaunch module
+    CreatePool {
+        /// CW20 token address to create pool for
+        token_address: String,
+        /// Initial CHANSE amount for the pool
+        ansem_amount: Uint128,
+        /// Initial token amount for the pool
+        token_amount: Uint128,
+        /// Optional augmented fee in basis points (100 = 1%)
+        augmented_fee_bps: Option<u16>,
+        /// Optional target pool value in uchanse (as String for Uint128 compat)
+        lp_target_uchanse: Option<String>,
+        /// v3: Optional unix timestamp at which the locked seed becomes
+        /// withdrawable. `None` = permanent lock (matches pre-v3 behavior).
+        /// If set, `locked_lp_recipient` is required.
+        #[serde(default)]
+        locked_lp_unlock_at: Option<u64>,
+        /// v3: Address allowed to call `WithdrawLockedLp` once the lock
+        /// has elapsed. Ignored when `locked_lp_unlock_at` is None.
+        #[serde(default)]
+        locked_lp_recipient: Option<String>,
+    },
+    /// Swap CHANSE for tokens or tokens for CHANSE
+    Swap {
+        /// Token address of the pool to swap in
+        token_address: String,
+        /// Direction: true = CHANSE->Token, false = Token->CHANSE
+        /// If true, send native CHANSE funds with this message
+        /// If false, must call CW20 Send to this contract first
+        offer_ansem: bool,
+        /// Minimum output amount (slippage protection)
+        min_output: Uint128,
+    },
+    /// v2: Add liquidity to an existing pool. Caller attaches CHANSE funds; the
+    /// matching token side is pulled via TransferFrom (caller must IncreaseAllowance
+    /// on the CW20 first). Token amount needed is computed from current pool ratio;
+    /// caller specifies max_token_amount as slippage protection. New LP shares are
+    /// credited to caller's OPEN_LP balance and can be withdrawn via RemoveLiquidity.
+    AddLiquidity {
+        token_address: String,
+        max_token_amount: Uint128,
+    },
+    /// v2: Burn open LP shares to redeem proportional reserves. Returns
+    /// (lp_amount * ansem_reserve / lp_total_supply) CHANSE and the analogous
+    /// amount of tokens. Cannot withdraw the locked seed — it has no holder.
+    RemoveLiquidity {
+        token_address: String,
+        lp_amount: Uint128,
+    },
+    /// v3: Redeem the locked LP seed once the configured lock has elapsed.
+    /// Only callable when:
+    ///   - `pool.locked_lp_unlock_at` is `Some(t)` (permanent locks reject)
+    ///   - `env.block.time.seconds() >= t`
+    ///   - `info.sender == pool.locked_lp_recipient`
+    /// Sends `(locked_lp_supply / lp_total_supply)` of both reserves to
+    /// `recipient` (defaults to the sender), then zeros `locked_lp_supply`
+    /// and decrements `lp_total_supply` by the same amount. Existing open
+    /// LP holders are unaffected and keep their proportional claim.
+    WithdrawLockedLp {
+        token_address: String,
+        recipient: Option<String>,
+    },
+    /// Receive CW20 tokens (for Token->CHANSE swaps)
+    Receive(cw20::Cw20ReceiveMsg),
+}
+
+/// Message sent inside CW20 Send for Token->CHANSE swaps
+#[cw_serde]
+pub struct SwapTokenForAnsem {
+    /// Minimum CHANSE output (slippage protection)
+    pub min_output: Uint128,
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    /// Get pool info for a token
+    #[returns(PoolResponse)]
+    Pool { token_address: String },
+
+    /// Get all pools
+    #[returns(AllPoolsResponse)]
+    AllPools {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
+
+    /// Get swap simulation (how much output for given input)
+    #[returns(SimulateSwapResponse)]
+    SimulateSwap {
+        token_address: String,
+        offer_ansem: bool,
+        offer_amount: Uint128,
+    },
+
+    /// Get contract config
+    #[returns(ConfigResponse)]
+    Config {},
+
+    /// Get augmented fee status for a pool
+    #[returns(AugmentedFeeStatusResponse)]
+    AugmentedFeeStatus { token_address: String },
+
+    /// v2: Look up a holder's open LP balance for a pool.
+    #[returns(LpBalanceResponse)]
+    LpBalance {
+        token_address: String,
+        holder: String,
+    },
+
+    /// v2: Simulate AddLiquidity — returns required token amount + LP shares minted.
+    #[returns(SimulateAddLiquidityResponse)]
+    SimulateAddLiquidity {
+        token_address: String,
+        ansem_amount: Uint128,
+    },
+
+    /// v3: Lock metadata for a pool. Returns the recipient + unlock timestamp
+    /// + whether the lock has elapsed. UIs use this to render a countdown
+    /// and a withdraw-when-unlocked button.
+    #[returns(LockedLpResponse)]
+    LockedLp { token_address: String },
+}
+
+// Response types
+
+#[cw_serde]
+pub struct PoolResponse {
+    pub token_address: Addr,
+    pub ansem_reserve: Uint128,
+    pub token_reserve: Uint128,
+    pub lp_token_address: Addr,
+    pub lp_total_supply: Uint128,
+    /// Current price: CHANSE per token
+    pub price: String,
+    /// v3: present so UIs can show "LP locked until ...". `None` means
+    /// either a forever-lock or a pre-v3 pool (semantically the same).
+    #[serde(default)]
+    pub locked_lp_unlock_at: Option<u64>,
+}
+
+#[cw_serde]
+pub struct AllPoolsResponse {
+    pub pools: Vec<PoolResponse>,
+}
+
+#[cw_serde]
+pub struct SimulateSwapResponse {
+    pub output_amount: Uint128,
+    pub fee_amount: Uint128,
+    pub price_impact: String,
+    pub augmented_fee_amount: Uint128,
+}
+
+#[cw_serde]
+pub struct ConfigResponse {
+    pub authorized_creators: Vec<Addr>,
+    pub swap_fee_bps: u16,
+    pub max_wallet_bps: u16,
+}
+
+#[cw_serde]
+pub struct AugmentedFeeStatusResponse {
+    pub active: bool,
+    pub augmented_fee_bps: u16,
+    pub lp_target_uchanse: Uint128,
+    pub current_pool_value_uchanse: Uint128,
+    pub progress_percent: String,
+}
+
+#[cw_serde]
+pub struct LpBalanceResponse {
+    pub holder: Addr,
+    pub token_address: Addr,
+    /// Open LP shares this holder owns (excludes the locked seed).
+    pub shares: Uint128,
+    /// What those shares are currently worth in CHANSE + tokens.
+    pub ansem_share: Uint128,
+    pub token_share: Uint128,
+    /// Total LP supply in the pool (locked + all open).
+    pub lp_total_supply: Uint128,
+    pub locked_lp_supply: Uint128,
+}
+
+#[cw_serde]
+pub struct SimulateAddLiquidityResponse {
+    /// Token amount required to match the CHANSE input at current ratio.
+    pub token_amount_required: Uint128,
+    /// LP shares the depositor would receive.
+    pub lp_shares_minted: Uint128,
+    pub ansem_reserve_before: Uint128,
+    pub token_reserve_before: Uint128,
+}
+
+#[cw_serde]
+pub struct LockedLpResponse {
+    pub token_address: Addr,
+    /// Shares in the locked slice. Zero after a successful WithdrawLockedLp.
+    pub locked_lp_supply: Uint128,
+    /// `None` means the lock is permanent. `Some(t)` is unix seconds.
+    pub unlock_at: Option<u64>,
+    /// `None` only if `unlock_at` is also None.
+    pub recipient: Option<Addr>,
+    /// True when `unlock_at` is set AND `env.block.time.seconds() >= unlock_at`.
+    pub unlocked: bool,
+    /// What the locked slice is currently worth, computed at query time.
+    pub ansem_share: Uint128,
+    pub token_share: Uint128,
+}
+```

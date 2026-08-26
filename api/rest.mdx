@@ -1,0 +1,458 @@
+---
+title: 'REST API'
+description: 'HTTP REST API for chain state queries'
+---
+
+# REST API
+
+The REST API provides HTTP access to chain state and CosmWasm queries.
+
+## Endpoint
+
+```
+https://rest.ansemchain.fun
+```
+
+## Swagger Documentation
+
+Interactive API docs available at:
+
+```
+https://rest.ansemchain.fun/swagger/
+```
+
+## Node Info
+
+### Get Node Info
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/node_info
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "default_node_info": {
+    "protocol_version": {"p2p": "8", "block": "11", "app": "0"},
+    "default_node_id": "abc123...",
+    "network": "ansem-localnet",
+    "version": "0.38.0",
+    "moniker": "localnet-node"
+  },
+  "application_version": {
+    "name": "ansem",
+    "app_name": "ansemd",
+    "version": "1.0.0",
+    "cosmos_sdk_version": "v0.50.13"
+  }
+}
+```
+</Accordion>
+
+### Get Syncing Status
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/syncing
+```
+
+Response:
+```json wrap
+{"syncing": false}
+```
+
+### Get Latest Block
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/blocks/latest
+```
+
+## Bank Module
+
+### Query All Balances
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1address...
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "balances": [
+    {"denom": "uchanse", "amount": "1000000"}
+  ],
+  "pagination": {
+    "next_key": null,
+    "total": "1"
+  }
+}
+```
+</Accordion>
+
+### Query Specific Denom
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1address.../by_denom?denom=uchanse
+```
+
+### Total Supply
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/supply
+```
+
+### Supply of Denom
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/supply/by_denom?denom=uchanse
+```
+
+## Auth Module
+
+### Get Account
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/auth/v1beta1/accounts/ansem1address...
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "account": {
+    "@type": "/cosmos.auth.v1beta1.BaseAccount",
+    "address": "ansem1address...",
+    "pub_key": {
+      "@type": "/cosmos.crypto.secp256k1.PubKey",
+      "key": "A..."
+    },
+    "account_number": "0",
+    "sequence": "5"
+  }
+}
+```
+</Accordion>
+
+### List All Accounts
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/auth/v1beta1/accounts
+```
+
+## Staking Module
+
+### Get Validators
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/validators
+```
+
+### Get Specific Validator
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/validators/ansemvaloper1...
+```
+
+### Get Delegations
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/delegations/ansem1delegator...
+```
+
+### Staking Pool
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/pool
+```
+
+## Distribution Module
+
+### Delegator Rewards
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/distribution/v1beta1/delegators/ansem1.../rewards
+```
+
+### Validator Commission
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/distribution/v1beta1/validators/ansemvaloper1.../commission
+```
+
+## Governance Module
+
+### List Proposals
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/gov/v1/proposals
+```
+
+### Get Proposal
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/gov/v1/proposals/1
+```
+
+### Get Votes
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/gov/v1/proposals/1/votes
+```
+
+## CosmWasm Module
+
+### List Codes
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmwasm/wasm/v1/code
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "code_infos": [
+    {
+      "code_id": "1",
+      "creator": "ansem1creator...",
+      "data_hash": "ABC123...",
+      "instantiate_permission": {"permission": "Everybody"}
+    }
+  ],
+  "pagination": {"next_key": null, "total": "1"}
+}
+```
+</Accordion>
+
+### Get Code Info
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmwasm/wasm/v1/code/1
+```
+
+### List Contracts by Code
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmwasm/wasm/v1/code/1/contracts
+```
+
+### Get Contract Info
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmwasm/wasm/v1/contract/ansem1contract...
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "address": "ansem1contract...",
+  "contract_info": {
+    "code_id": "1",
+    "creator": "ansem1creator...",
+    "admin": "ansem1admin...",
+    "label": "My Contract",
+    "created": {"block_height": "12345"},
+    "ibc_port_id": ""
+  }
+}
+```
+</Accordion>
+
+### Query Contract State (Smart)
+
+The query message must be base64 encoded:
+
+```bash wrap
+# Base64 encode the query
+QUERY=$(echo -n '{"get_count":{}}' | base64)
+# eyJnZXRfY291bnQiOnt9fQ==
+
+curl "https://rest.ansemchain.fun/cosmwasm/wasm/v1/contract/ansem1contract.../smart/$QUERY"
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "data": {"count": 42}
+}
+```
+</Accordion>
+
+### Query Contract State (Raw)
+
+Query raw storage by key:
+
+```bash wrap
+KEY=$(echo -n "config" | xxd -p)
+curl "https://rest.ansemchain.fun/cosmwasm/wasm/v1/contract/ansem1contract.../raw/$KEY"
+```
+
+### Get Contract History
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmwasm/wasm/v1/contract/ansem1contract.../history
+```
+
+## Transactions
+
+### Get Transaction by Hash
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs/ABC123...
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "tx": {
+    "body": {
+      "messages": [...],
+      "memo": ""
+    },
+    "auth_info": {...},
+    "signatures": [...]
+  },
+  "tx_response": {
+    "height": "12345",
+    "txhash": "ABC123...",
+    "code": 0,
+    "gas_wanted": "200000",
+    "gas_used": "150000",
+    "events": [...]
+  }
+}
+```
+</Accordion>
+
+### Search Transactions
+
+```bash wrap
+# By sender
+curl "https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs?events=message.sender='ansem1sender...'"
+
+# By recipient
+curl "https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs?events=transfer.recipient='ansem1recipient...'"
+
+# By height
+curl "https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs?events=tx.height=12345"
+```
+
+### Simulate Transaction
+
+```bash wrap
+curl -X POST https://rest.ansemchain.fun/cosmos/tx/v1beta1/simulate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tx_bytes": "base64-encoded-tx",
+    "mode": "BROADCAST_MODE_SYNC"
+  }'
+```
+
+### Broadcast Transaction
+
+```bash wrap
+curl -X POST https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tx_bytes": "base64-encoded-signed-tx",
+    "mode": "BROADCAST_MODE_SYNC"
+  }'
+```
+
+Modes:
+- `BROADCAST_MODE_SYNC` - Wait for CheckTx
+- `BROADCAST_MODE_ASYNC` - Return immediately
+- `BROADCAST_MODE_BLOCK` - Wait for block (deprecated)
+
+## Pagination
+
+Most list endpoints support pagination:
+
+```bash wrap
+# First page
+curl "https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1...?pagination.limit=10"
+
+# Next page (use next_key from previous response)
+curl "https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1...?pagination.key=ABC123&pagination.limit=10"
+
+# Get total count
+curl "https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1...?pagination.count_total=true"
+```
+
+## Parameters
+
+### Bank Params
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/params
+```
+
+### Staking Params
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/staking/v1beta1/params
+```
+
+### Governance Params
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/gov/v1/params/voting
+curl https://rest.ansemchain.fun/cosmos/gov/v1/params/deposit
+curl https://rest.ansemchain.fun/cosmos/gov/v1/params/tallying
+```
+
+### Mint Params
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/mint/v1beta1/params
+```
+
+Response (ansemchain has zero inflation):
+```json wrap
+{
+  "params": {
+    "mint_denom": "uchanse",
+    "inflation_rate_change": "0",
+    "inflation_max": "0",
+    "inflation_min": "0",
+    "goal_bonded": "0.67",
+    "blocks_per_year": "6311520"
+  }
+}
+```
+
+## Error Handling
+
+### Error Response
+
+```json wrap
+{
+  "code": 5,
+  "message": "rpc error: code = NotFound desc = account ansem1invalid... not found",
+  "details": []
+}
+```
+
+### Common Error Codes
+
+| Code | Description |
+|------|-------------|
+| 2 | Unknown error |
+| 3 | Invalid argument |
+| 5 | Not found |
+| 11 | Out of range |
+
+## Complete Module Reference
+
+| Module | Base Path |
+|--------|-----------|
+| Auth | `/cosmos/auth/v1beta1/` |
+| Bank | `/cosmos/bank/v1beta1/` |
+| Distribution | `/cosmos/distribution/v1beta1/` |
+| Evidence | `/cosmos/evidence/v1beta1/` |
+| Gov | `/cosmos/gov/v1/` |
+| Mint | `/cosmos/mint/v1beta1/` |
+| Params | `/cosmos/params/v1beta1/` |
+| Slashing | `/cosmos/slashing/v1beta1/` |
+| Staking | `/cosmos/staking/v1beta1/` |
+| Upgrade | `/cosmos/upgrade/v1beta1/` |
+| Tendermint | `/cosmos/base/tendermint/v1beta1/` |
+| Tx | `/cosmos/tx/v1beta1/` |
+| CosmWasm | `/cosmwasm/wasm/v1/` |

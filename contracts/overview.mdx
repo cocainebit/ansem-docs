@@ -1,0 +1,261 @@
+---
+title: 'Smart Contracts Overview'
+description: 'Build and deploy CosmWasm smart contracts on ansemchain'
+---
+
+# Smart Contracts
+
+ansemchain supports [CosmWasm](https://cosmwasm.com) smart contracts - Rust-based programs that run on the blockchain, similar to Solana programs.
+
+## Why CosmWasm?
+
+<CardGroup cols={2}>
+  <Card title="Rust Safety" icon="shield-check">
+    Memory-safe language prevents common vulnerabilities
+  </Card>
+  <Card title="Familiar to Solana Devs" icon="code">
+    Rust-based like Solana programs
+  </Card>
+  <Card title="Rich Ecosystem" icon="cubes">
+    CW20, CW721, and many more standards
+  </Card>
+  <Card title="IBC Compatible" icon="link">
+    Cross-chain contracts via IBC
+  </Card>
+</CardGroup>
+
+## Contract Lifecycle
+
+```
+┌─────────────┐     ┌───────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Scaffold   │────▶│    Build      │────▶│   Deploy    │────▶│  Interact   │
+│  (ansem init) │     │(ansem program   │     │(ansem program │     │(execute/    │
+│             │     │    build)     │     │   deploy)   │     │   query)    │
+└─────────────┘     └───────────────┘     └─────────────┘     └─────────────┘
+```
+
+1. **Scaffold** - Create project structure with `ansem init`
+2. **Build** - Compile Rust to optimized Wasm with `ansem program build`
+3. **Deploy** - Upload and instantiate with `ansem program deploy`
+4. **Interact** - Execute methods and query state
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `ansem init` | Scaffold new contract project |
+| `ansem program build` | Compile to optimized Wasm |
+| `ansem program deploy` | Upload and instantiate contract |
+| `ansem program execute` | Call contract method |
+| `ansem program query` | Read contract state |
+| `ansem program list` | List deployed contracts |
+| `ansem program info` | Contract details |
+| `ansem localnet` | Local development network |
+
+## Quick Start
+
+### 1. Start Local Network
+
+```bash wrap
+ansem localnet start
+```
+
+### 2. Scaffold Project
+
+```bash wrap
+ansem init my-contract
+cd my-contract
+```
+
+### 3. Build Contract
+
+```bash wrap
+ansem program build
+```
+
+### 4. Deploy
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm --from alice --label "My Contract"
+```
+
+### 5. Interact
+
+```bash wrap
+# Query state
+ansem program query ansem1contract... '{"get_count":{}}'
+
+# Execute method
+ansem program execute ansem1contract... '{"increment":{}}' --from alice
+```
+
+## Project Structure
+
+`ansem init` creates:
+
+```
+my-contract/
+├── Cargo.toml           # Rust dependencies
+├── src/
+│   ├── lib.rs          # Contract entry point
+│   ├── contract.rs     # Main logic
+│   ├── msg.rs          # Message types
+│   ├── state.rs        # State storage
+│   └── error.rs        # Custom errors
+├── .gitignore
+└── README.md
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `lib.rs` | Exports contract entry points |
+| `contract.rs` | `instantiate`, `execute`, `query` functions |
+| `msg.rs` | `InstantiateMsg`, `ExecuteMsg`, `QueryMsg` |
+| `state.rs` | Storage using `cw-storage-plus` |
+| `error.rs` | Custom error types |
+
+## Contract Entry Points
+
+Every CosmWasm contract has three entry points:
+
+```rust wrap
+// Called once when contract is created
+pub fn instantiate(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError>
+
+// Called to modify state
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError>
+
+// Called to read state (no state changes)
+pub fn query(
+    deps: Deps,
+    env: Env,
+    msg: QueryMsg,
+) -> StdResult<Binary>
+```
+
+## Message Types
+
+### InstantiateMsg
+
+Configuration when creating the contract:
+
+```rust wrap
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct InstantiateMsg {
+    pub count: i32,
+    pub owner: String,
+}
+```
+
+### ExecuteMsg
+
+Actions that modify state:
+
+```rust wrap
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum ExecuteMsg {
+    Increment {},
+    Decrement {},
+    Reset { count: i32 },
+}
+```
+
+### QueryMsg
+
+Read-only requests:
+
+```rust wrap
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum QueryMsg {
+    GetCount {},
+    GetOwner {},
+}
+```
+
+## Gas & Fees
+
+CosmWasm operations use more gas than standard transactions:
+
+| Operation | Typical Gas |
+|-----------|-------------|
+| Store (upload) | 1,000,000 - 5,000,000 |
+| Instantiate | 200,000 - 500,000 |
+| Execute | 100,000 - 300,000 |
+| Query | Free (no tx) |
+
+The CLI automatically estimates gas with a 1.3x buffer.
+
+## Development Workflow
+
+<Steps>
+  <Step title="Write Code">
+    Modify `src/contract.rs` with your logic
+  </Step>
+  <Step title="Build">
+    ```bash
+    ansem program build
+    ```
+  </Step>
+  <Step title="Test Locally">
+    ```bash
+    ansem localnet start --reset
+    ansem program deploy artifacts/my_contract.wasm --from alice
+    ```
+  </Step>
+  <Step title="Iterate">
+    Repeat until working correctly
+  </Step>
+  <Step title="Deploy to Testnet">
+    ```bash
+    ansem config set node tcp://rpc.testnet.ansemchain.fun:26657
+    ansem program deploy artifacts/my_contract.wasm --from mykey
+    ```
+  </Step>
+</Steps>
+
+## Standards
+
+Common contract standards available:
+
+| Standard | Description | Use Case |
+|----------|-------------|----------|
+| CW20 | Fungible tokens | Token creation |
+| CW721 | Non-fungible tokens | NFTs |
+| CW1 | Proxy contracts | Upgradability |
+| CW3 | Multisig | DAOs, shared wallets |
+| CW4 | Groups | Membership management |
+
+## Resources
+
+- [CosmWasm Documentation](https://docs.cosmwasm.com)
+- [CosmWasm Plus Contracts](https://github.com/CosmWasm/cw-plus)
+- [Rust Book](https://doc.rust-lang.org/book/)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Scaffolding" icon="folder-plus" href="/contracts/scaffolding">
+    Create your first project
+  </Card>
+  <Card title="Building" icon="hammer" href="/contracts/building">
+    Compile to optimized Wasm
+  </Card>
+  <Card title="Deploying" icon="upload" href="/contracts/deploying">
+    Deploy to the chain
+  </Card>
+  <Card title="Localnet" icon="server" href="/localnet/overview">
+    Local development network
+  </Card>
+</CardGroup>

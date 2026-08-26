@@ -1,0 +1,33 @@
+---
+title: 'Community Proposals'
+description: 'On-chain proposals anyone can submit and vote on, from the website or Telegram'
+---
+
+# Community Proposals
+
+Ansem has a lightweight, fully on-chain proposal system. Proposals and votes live in ordinary chain transactions, so the proposal website, the Telegram bot, and any other client all read and write the **same pool**: submit on one surface, vote on another, the tallies agree everywhere.
+
+## How it works under the hood
+
+- Submitting a proposal sends **1 `uchanse`** (0.000001 CHANSE) to the community treasury with the proposal encoded in the transaction memo
+- Voting sends the same dust amount (1 `uchanse`) with a memo referencing the proposal
+- Tallies are rebuilt from chain history on every read; there is no off-chain database to trust
+
+## What proposals can be
+
+- **Yes/No** - the classic binary question
+- **Multi-option** - 2 to 10 custom options; voters pick exactly one
+
+## Voting rules
+
+- One vote per wallet per proposal; your **first** vote is the one that counts
+- A vote on a yes/no proposal must be yes or no; a vote on a multi-option proposal must pick one of its options. Mismatched votes are ignored by the tally.
+
+## Where to participate
+
+- The proposals website
+- [@chanseproposalbot](/telegram/overview) on Telegram - browse, vote, and submit from chat
+
+<Note>
+Community proposals are signals, not binding governance. Validator-voted chain governance (parameter changes, upgrades) is a separate system; see [Governance](/chain/overview).
+</Note>

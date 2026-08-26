@@ -1,0 +1,219 @@
+---
+title: 'contract.rs'
+description: 'The logic: the `instantiate`/`execute`/`query` entry points and every handler behind them.'
+---
+
+The logic: the `instantiate`/`execute`/`query` entry points and every handler behind them. This is where the rules actually run.
+
+<Info>Live source from `contracts/vesting/src/contract.rs` (210 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::{
+    entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, Uint128, WasmMsg,
+};
+use cw2::set_contract_version;
+use cw_storage_plus::Item;
+
+use crate::error::ContractError;
+use crate::msg::{
+    BeneficiaryResponse, ConfigResponse, Cw20ReceiveMsg, ExecuteMsg, InstantiateMsg, MigrateMsg,
+    QueryMsg, ScheduleResponse,
+};
+use crate::state::{Config, CONFIG};
+
+const CONTRACT_NAME: &str = "crates.io:ansem-vesting";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let token = deps.api.addr_validate(&msg.token)?;
+    let beneficiary = deps.api.addr_validate(&msg.beneficiary)?;
+    let cfg = Config {
+        token,
+        beneficiary,
+        origin: info.sender,
+        start_time: msg.start_time,
+        cliff_time: msg.cliff_time,
+        end_time: msg.end_time,
+        total_amount: Uint128::zero(),
+        released: Uint128::zero(),
+        funded: false,
+    };
+    cfg.validate()?;
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::new()
+        .add_attribute("action", "instantiate")
+        .add_attribute("token", cfg.token.to_string())
+        .add_attribute("beneficiary", cfg.beneficiary.to_string())
+        .add_attribute("origin", cfg.origin.to_string())
+        .add_attribute("start_time", cfg.start_time.to_string())
+        .add_attribute("cliff_time", cfg.cliff_time.to_string())
+        .add_attribute("end_time", cfg.end_time.to_string()))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    match msg {
+        ExecuteMsg::Receive(hook) => execute_receive(deps, env, info, hook),
+        ExecuteMsg::Claim {} => execute_claim(deps, env, info),
+    }
+}
+
+fn execute_receive(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    hook: Cw20ReceiveMsg,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.token {
+        return Err(ContractError::FundingTokenMismatch {
+            expected: cfg.token.to_string(),
+            got: info.sender.to_string(),
+        });
+    }
+    if cfg.funded {
+        return Err(ContractError::AlreadyFunded {});
+    }
+    if hook.amount.is_zero() {
+        return Err(ContractError::InvalidSchedule {
+            reason: "funding amount must be > 0".into(),
+        });
+    }
+    cfg.total_amount = hook.amount;
+    cfg.funded = true;
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::new()
+        .add_attribute("action", "fund")
+        .add_attribute("amount", hook.amount.to_string())
+        .add_attribute("sender", hook.sender))
+}
+
+fn execute_claim(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.beneficiary {
+        return Err(ContractError::Unauthorized {});
+    }
+    if !cfg.funded {
+        return Err(ContractError::NotFunded {});
+    }
+    let claimable = cfg.claimable(env.block.time.seconds());
+    if claimable.is_zero() {
+        return Err(ContractError::NothingToClaim {});
+    }
+    cfg.released += claimable;
+    CONFIG.save(deps.storage, &cfg)?;
+    let transfer = cw20_transfer(&cfg.token, &cfg.beneficiary, claimable)?;
+    Ok(Response::new()
+        .add_message(transfer)
+        .add_attribute("action", "claim")
+        .add_attribute("beneficiary", cfg.beneficiary.to_string())
+        .add_attribute("amount", claimable.to_string())
+        .add_attribute("total_released", cfg.released.to_string()))
+}
+
+fn cw20_transfer(
+    token: &Addr,
+    recipient: &Addr,
+    amount: Uint128,
+) -> StdResult<CosmosMsg> {
+    // Hand-rolled CW20 transfer payload to avoid pulling in the full
+    // cw20 crate for one message shape; matches the on-disk launchpad
+    // and AMM style. The token contract validates input.
+    #[derive(serde::Serialize)]
+    struct TransferMsg {
+        transfer: Transfer,
+    }
+    #[derive(serde::Serialize)]
+    struct Transfer {
+        recipient: String,
+        amount: Uint128,
+    }
+    let payload = to_binary(&TransferMsg {
+        transfer: Transfer {
+            recipient: recipient.to_string(),
+            amount,
+        },
+    })?;
+    Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: token.to_string(),
+        msg: payload,
+        funds: vec![],
+    }))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Schedule {} => to_binary(&query_schedule(deps, env)?),
+        QueryMsg::Beneficiary {} => to_binary(&query_beneficiary(deps)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+    }
+}
+
+fn query_schedule(deps: Deps, env: Env) -> StdResult<ScheduleResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
+    let now = env.block.time.seconds();
+    Ok(ScheduleResponse {
+        total_amount: cfg.total_amount,
+        vested: cfg.vested_amount(now),
+        released: cfg.released,
+        claimable: cfg.claimable(now),
+        now_seconds: now,
+        start_time: cfg.start_time,
+        cliff_time: cfg.cliff_time,
+        end_time: cfg.end_time,
+        funded: cfg.funded,
+    })
+}
+
+fn query_beneficiary(deps: Deps) -> StdResult<BeneficiaryResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(BeneficiaryResponse {
+        beneficiary: cfg.beneficiary.to_string(),
+    })
+}
+
+fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let cfg = CONFIG.load(deps.storage)?;
+    Ok(ConfigResponse {
+        token: cfg.token.to_string(),
+        beneficiary: cfg.beneficiary.to_string(),
+        origin: cfg.origin.to_string(),
+        start_time: cfg.start_time,
+        cliff_time: cfg.cliff_time,
+        end_time: cfg.end_time,
+        total_amount: cfg.total_amount,
+        funded: cfg.funded,
+    })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let stored: Item<cw2::ContractVersion> = Item::new("contract_info");
+    stored.save(
+        deps.storage,
+        &cw2::ContractVersion {
+            contract: CONTRACT_NAME.to_string(),
+            version: CONTRACT_VERSION.to_string(),
+        },
+    )?;
+    Ok(Response::new().add_attribute("action", "migrate"))
+}
+```

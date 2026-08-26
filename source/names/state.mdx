@@ -1,0 +1,45 @@
+---
+title: 'state.rs'
+description: 'Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract''s state between calls.'
+---
+
+Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract's state between calls.
+
+<Info>Live source from `contracts/names/src/state.rs` (35 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Addr;
+use cw_storage_plus::{Item, Map};
+
+#[cw_serde]
+pub struct Config {
+    pub admin: Addr,
+    pub treasury: Addr,
+    pub oracle_contract: Addr,
+    /// UNIX seconds; while now <= this, registration is free.
+    pub free_until_timestamp: u64,
+    pub min_length: u8,    // default 3
+    pub max_length: u8,    // default 32
+    pub tld: String,       // ".ansem"
+    /// Pricing tiers in micro-USD (6 decimals).
+    pub price_3: u128,        // $100  = 100_000_000
+    pub price_4: u128,        // $25   =  25_000_000
+    pub price_5_8: u128,      // $10   =  10_000_000
+    pub price_9_plus: u128,   // $1    =   1_000_000
+}
+
+#[cw_serde]
+pub struct Record {
+    pub owner: Addr,
+    pub registered_at: u64, // block time seconds
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
+/// canonical lowercase, no TLD
+pub const NAMES: Map<&str, Record> = Map::new("names");
+/// owner -> their primary name
+pub const PRIMARY: Map<&Addr, String> = Map::new("primary");
+/// index for "list owned by addr"
+pub const OWNED: Map<(&Addr, &str), ()> = Map::new("owned");
+```

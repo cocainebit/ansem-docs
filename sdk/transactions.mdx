@@ -1,0 +1,221 @@
+---
+title: 'Transactions'
+description: 'Send tokens, execute contracts, and broadcast transactions with the SDK'
+---
+
+# Transactions
+
+Transactions require a signing client -- either from a mnemonic (Node.js) or a wallet connection (browser).
+
+## Creating a Signing Client
+
+<CodeGroup>
+```typescript Node.js (Mnemonic)
+import { createSigningClient } from "@ansem-chain/sdk";
+
+const client = await createSigningClient(
+  { rpcEndpoint: "https://rpc.ansemchain.fun" },
+  "your twelve word mnemonic phrase goes here ..."
+);
+
+console.log("Address:", client.address);
+```
+
+```typescript Browser (Wallet)
+import { showWalletModal, createContractClient } from "@ansem-chain/sdk";
+
+const wallet = await showWalletModal({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+});
+
+// wallet.address and wallet.signer are available for transactions
+```
+</CodeGroup>
+
+## Send Native Tokens
+
+### Send CHANSE (Convenience)
+
+```typescript wrap
+import { sendAnsem } from "@ansem-chain/sdk";
+
+// Send 10 CHANSE (amount in uchanse)
+const result = await sendAnsem(client, "ansem1...recipient", "10000000");
+
+console.log(result.transactionHash);  // TX hash
+console.log(result.code);             // 0 = success
+console.log(result.gasUsed);          // Gas consumed
+```
+
+### Send Any Token
+
+```typescript wrap
+import { sendTokens } from "@ansem-chain/sdk";
+
+const result = await sendTokens(client, "ansem1...recipient", [
+  { denom: "uchanse", amount: "10000000" },
+]);
+```
+
+### Send Options
+
+Both `sendAnsem` and `sendTokens` accept optional parameters:
+
+```typescript wrap
+const result = await sendAnsem(client, "ansem1...recipient", "10000000", {
+  memo: "Payment for services",    // Transaction memo
+  gas: "200000",                   // Manual gas limit
+  gasPrice: "0.025uchanse",           // Gas price
+  gasAdjustment: 1.3,             // Multiplier for estimated gas
+});
+```
+
+## Execute Smart Contracts
+
+### Generic Contract Execution
+
+```typescript wrap
+import { createContractClient, executeContract } from "@ansem-chain/sdk";
+
+const config = { rpcEndpoint: "https://rpc.ansemchain.fun" };
+const contractClient = await createContractClient(config, wallet);
+
+const result = await executeContract(
+  contractClient,
+  wallet.address,
+  "ansem1...contract",
+  { transfer: { recipient: "ansem1...", amount: "1000000" } },
+  {
+    memo: "Token transfer",
+    funds: [{ denom: "uchanse", amount: "100000" }],  // Optional attached funds
+  }
+);
+
+console.log(result.transactionHash);
+console.log(result.events);  // Contract events emitted
+```
+
+## CW20 Token Operations
+
+The SDK provides dedicated helpers for common CW20 operations:
+
+### Transfer CW20
+
+```typescript wrap
+import { transferCW20 } from "@ansem-chain/sdk";
+
+const result = await transferCW20(
+  contractClient,
+  wallet.address,
+  "ansem1...token",       // CW20 contract address
+  "ansem1...recipient",   // Recipient address
+  "1000000"             // Amount in micro-units
+);
+```
+
+### Mint CW20
+
+```typescript wrap
+import { mintCW20 } from "@ansem-chain/sdk";
+
+const result = await mintCW20(
+  contractClient,
+  wallet.address,
+  "ansem1...token",
+  "ansem1...recipient",
+  "5000000"
+);
+```
+
+### Burn CW20
+
+```typescript wrap
+import { burnCW20 } from "@ansem-chain/sdk";
+
+const result = await burnCW20(
+  contractClient,
+  wallet.address,
+  "ansem1...token",
+  "1000000"
+);
+```
+
+### Send CW20 (to a Contract)
+
+Used for launchpad sells and AMM swaps (CW20 Send pattern):
+
+```typescript wrap
+import { sendCW20 } from "@ansem-chain/sdk";
+
+// Sell tokens on launchpad (sends to launchpad contract with encoded message)
+const result = await sendCW20(
+  contractClient,
+  wallet.address,
+  "ansem1...token",           // CW20 token contract
+  "ansem1...launchpad",       // Recipient contract
+  "1000000",                // Amount
+  { min_ansem_out: "500000" } // Inner message (auto base64-encoded)
+);
+```
+
+### Increase CW20 Allowance
+
+```typescript wrap
+import { increaseAllowanceCW20 } from "@ansem-chain/sdk";
+
+const result = await increaseAllowanceCW20(
+  contractClient,
+  wallet.address,
+  "ansem1...token",
+  "ansem1...spender",
+  "5000000"
+);
+```
+
+## Transaction Results
+
+All transaction functions return a result with:
+
+```typescript wrap
+interface TxResult {
+  transactionHash: string;  // The transaction hash
+  code: number;             // 0 = success, non-zero = error
+  gasUsed: number;          // Gas consumed
+  gasWanted: number;        // Gas limit
+}
+
+// Contract executions also include:
+interface ExecuteResult extends TxResult {
+  events: ContractEvent[];  // Events emitted by the contract
+  data?: string;            // Optional return data
+}
+```
+
+## Fee Configuration
+
+The SDK auto-estimates gas by default. Override for specific use cases:
+
+```typescript wrap
+const result = await executeContract(
+  contractClient,
+  wallet.address,
+  "ansem1...contract",
+  { some_action: {} },
+  {
+    gas: "500000",          // Manual gas limit
+    gasPrice: "0.025uchanse",  // Gas price
+    gasAdjustment: 1.5,     // Safety multiplier
+  }
+);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Queries" icon="magnifying-glass" href="/sdk/queries">
+    Read balances and contract state
+  </Card>
+  <Card title="Wallets" icon="wallet" href="/sdk/wallets">
+    Connect Keplr, Leap, or Ansem Wallet
+  </Card>
+</CardGroup>

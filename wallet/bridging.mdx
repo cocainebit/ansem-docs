@@ -1,0 +1,53 @@
+---
+title: 'Bridging from the Wallet'
+description: 'Move CHANSE and ANSEM between Solana and ansemchain inside the extension'
+---
+
+# Bridging from the Wallet
+
+The bridge is multi-asset. From the wallet you can move **CHANSE** or **ANSEM** between Solana and ansemchain:
+
+- **Solana -> ansemchain**: your SPL token is locked in that asset's bridge vault on Solana and the same amount of the matching native denom is minted to your ansemchain address (CHANSE mints `uchanse`, ANSEM mints `uansem`)
+- **ansemchain -> Solana**: your native balance is escrowed and the same amount of SPL is released from that asset's vault to your Solana address
+
+Total supply of each asset across both chains stays constant. Nothing is wrapped. CHANSE on ansemchain is the native gas and staking token; ANSEM is a bridged asset. Both are SPL Token-2022 mints on Solana, which the wallet handles for you.
+
+## To ansemchain
+
+<Steps>
+
+### Open *Bridge to ansemchain*
+
+Pick the asset (**CHANSE** or **ANSEM**). The wallet shows your SPL balance for that asset on Solana.
+
+### Enter the amount and recipient
+
+Your own ansemchain address is pre-filled. The first deposit registers your recipient on chain; after that it is fixed for your Solana account and shared across all assets. The amount is capped by the asset's `max_mint_per_tx`.
+
+### Confirm
+
+You pay only the Solana network fee (~0.000005 SOL), or nothing if the relayer sponsors it. The relayer detects the deposit and mints the matching denom to your ansemchain address, typically in under a minute.
+
+</Steps>
+
+## To Solana
+
+<Steps>
+
+### Open *Bridge to Solana*
+
+Pick the asset (**CHANSE** or **ANSEM**). The wallet shows your native balance for that asset.
+
+### Enter the amount and the Solana recipient
+
+The wallet shows the asset's `max_burn_per_tx` and warns you if the amount crosses its `admin_approval_threshold`.
+
+### Confirm
+
+The withdrawal costs a small CHANSE gas fee on ansemchain (~0.0075 CHANSE) even when you are withdrawing ANSEM, since CHANSE is the gas token. Your coins are **escrowed** (not burned yet); the relayer releases SPL to your Solana address, typically in under a minute after the withdrawal confirms. Once the release lands, the escrow settles.
+
+</Steps>
+
+## Limits and safety
+
+Per-asset limits and rate caps are enforced by the bridge module: `max_mint_per_tx`, `max_burn_per_tx`, and an `admin_approval_threshold` above which large withdrawals need admin approval before release. See [Bridge fees and limits](/bridge/fees-and-limits) for the fields and current values. If a transfer ever stalls past a few minutes, it has not vanished: escrowed coins are refunded if a release fails, the relayer retries, and every deposit and withdrawal is traceable on both explorers.

@@ -1,0 +1,41 @@
+---
+title: 'Ansem Docs'
+description: 'CHANSE: a memecoin economy with its own chain, fair-launch launchpad, and community-governed proposals'
+---
+
+# Welcome to Ansem
+
+CHANSE is a token that grew its own blockchain. It lives in two places at once: as an SPL token on Solana, and as the native gas and staking asset of **ansemchain**, a zero-inflation proof-of-stake Layer 1. A bridge moves CHANSE between the two in about a minute.
+
+The bridge is multi-asset, and CHANSE is its priority asset. It also carries **ANSEM**, a bridged 1:1 voucher for the pump.fun ANSEM token that trades on ansemchain alongside CHANSE. ANSEM is a tradeable asset only; gas and staking are always paid in CHANSE. More assets can be added over time.
+
+On ansemchain, CHANSE powers a launchpad designed around one idea: **the rules that keep launches fair are enforced by contracts, not by promises.**
+
+<CardGroup cols={2}>
+  <Card title="Get the wallet" icon="wallet" href="/wallet/overview">
+    One extension for both chains: hold, bridge, and trade
+  </Card>
+  <Card title="The launchpad" icon="rocket" href="/launchpad/overview">
+    Bonding curves that graduate into permanently locked liquidity
+  </Card>
+  <Card title="The bridge" icon="arrows-left-right" href="/bridge/overview">
+    Multi-asset: Solana to ansemchain and back, no wrapping, no fee
+  </Card>
+  <Card title="Proposals" icon="check-to-slot" href="/proposals/overview">
+    On-chain community votes, from the web or Telegram
+  </Card>
+</CardGroup>
+
+## What makes it different
+
+- **Zero inflation.** Total CHANSE supply is fixed at 1 billion on Solana. The chain mints only what the bridge locks; supply across both chains is constant.
+- **2.25% max wallet on every launchpad token**, enforced on chain by both the curve and the AMM. Nobody buys up a launch.
+- **No price cliff at graduation.** The AMM pool opens at the exact price the curve ended at, with the reserved 20.69% of supply plus the entire graduation raise locked as liquidity forever.
+- **Asymmetric fees** (0.5% buy / 3.5% sell) that favor conviction over churn. Every fee flows into the token's own liquidity, not to any creator or protocol cut.
+- **Everything on chain.** Proposals are transaction memos. Tallies are recomputed from history. Apps, bots, and the wallet all read the same state.
+
+## Where to go
+
+- New here: [install the wallet](/wallet/install), then [bridge some CHANSE](/wallet/bridging)
+- Launching a coin: [creating a token](/launchpad/create-token)
+- Building on ansemchain: the [developer quickstart](/quickstart) and [Chain API](/api/chain/introduction)

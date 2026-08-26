@@ -1,0 +1,411 @@
+---
+title: 'Architecture'
+description: 'How ansemchain, the Launchpad, AMM, Bridge, and Telegram Bot fit together'
+---
+
+# Architecture
+
+ansemchain is a proof-of-stake blockchain with a set of CosmWasm smart contracts and off-chain services that together form a token launch and trading ecosystem.
+
+## System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         ansemchain                               │
+│                                                                 │
+│  Chain Modules          CosmWasm Contracts                 │
+│  ┌──────────┐ ┌──────────┐  ┌─────────────┐ ┌──────────────┐   │
+│  │ x/bridge │ │x/token   │  │  Launchpad  │ │     AMM      │   │
+│  │ mint/burn│ │ launch   │  │  (bonding   │ │  (xy=k DEX)  │   │
+│  └──────────┘ └──────────┘  │   curves)   │ └──────────────┘   │
+│                              └─────────────┘                    │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │ x/bank   │ │x/staking │ │  x/wasm  │ │  x/gov   │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                     BFT Consensus                          │
+└────────────┬────────────────────┬───────────────────┬───────────┘
+             │                    │                   │
+        ┌────┴────┐          ┌────┴────┐         ┌────┴────┐
+        │  RPC    │          │  REST   │         │  gRPC   │
+        │ :26657  │          │ :1317   │         │ :9090   │
+        └────┬────┘          └────┬────┘         └────┬────┘
+             │                    │                   │
+     ┌───────┴────────────────────┴───────────────────┴────────┐
+     │                   Off-Chain Services                     │
+     │                                                          │
+     │  ┌──────────────┐  ┌───────────────┐  ┌──────────────┐  │
+     │  │   Backend    │  │ Telegram Bot  │  │   Relayer    │  │
+     │  │  (indexer +  │  │  (trading UI  │  │ (Solana ↔    │  │
+     │  │   REST API)  │  │   in chat)    │  │ multi-asset) │  │
+     │  └──────────────┘  └───────────────┘  └──────────────┘  │
+     └──────────────────────────────────────────────────────────┘
+```
+
+## Technology Stack
+
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Consensus | BFT proof-of-stake | Latest |
+| Application | ansemchain runtime | v0.53.4 |
+| Smart Contracts | wasmd (CosmWasm) | v0.60.3 |
+| IBC | ibc-go | v10.4.0 |
+| Backend | Node.js / TypeScript / Express | - |
+| Database | TimescaleDB (PostgreSQL) | - |
+| Telegram Bot | grammY (TypeScript) | - |
+| Relayer | TypeScript / CosmJS | - |
+
+---
+
+## Launchpad (Bonding Curves)
+
+The Launchpad is a CosmWasm contract that lets anyone create a new token with a built-in bonding curve. It works like pump.fun - tokens start cheap, price rises as people buy, and the token automatically graduates to the AMM when enough CHANSE accumulates.
+
+### How It Works
+
+```
+┌──────────────┐       ┌───────────────────┐       ┌──────────────┐
+│   Create     │──────▶│  Bonding Curve     │──────▶│  Graduated   │
+│  (pay 80K    │       │  (buy/sell along   │       │  (all liqui- │
+│   CHANSE fee)   │       │   constant-product │       │   dity moves │
+│              │       │   virtual curve)   │       │   to AMM)    │
+└──────────────┘       └───────────────────┘       └──────────────┘
+                        threshold reached ─────────▶
+```
+
+### Token Supply Distribution
+
+Each token launches with a fixed 100M supply, split between the bonding curve and AMM liquidity:
+
+| Allocation | Amount | Purpose |
+|-----------|--------|---------|
+| Tokens on curve | ~79.31M | Available for buyers during bonding phase |
+| Tokens for LP | ~20.69M | Reserved for the AMM pool at graduation |
+
+These are dynamically computed from the oracle CHANSE/USD price and configured USD targets when each token is created.
+
+### Bonding Curve Math
+
+The launchpad uses a **constant-product virtual curve** (not a simple linear curve). Virtual reserves create a starting price without requiring seed liquidity:
+
+```
+K = virtual_ansem * virtual_tokens              (constant)
+virtual_tokens_current = virtual_tokens_start - tokens_sold
+virtual_ansem_current    = K / virtual_tokens_current
+```
+
+**Spot price** (uchanse per token):
+```
+price = K * 10^6 / (virtual_tokens_current)^2
+```
+
+**Buy calculation** (CHANSE in, tokens out):
+```
+fee            = ansem_input * buy_fee_bps / 10000
+ansem_after_fee  = ansem_input - fee
+tokens_out     = virtual_tokens_current - K / (virtual_ansem_current + ansem_after_fee)
+```
+
+**Sell calculation** (tokens in, CHANSE out):
+```
+ansem_gross = virtual_ansem_current - K / (virtual_tokens_current + tokens_in)
+fee       = ansem_gross * sell_fee_bps / 10000
+ansem_out   = ansem_gross - fee
+```
+
+### Fee Structure
+
+| Fee | Rate | Details |
+|-----|------|---------|
+| Token creation | 80,000 CHANSE | Fixed fee, becomes initial curve reserves |
+| Buy fee | 0.5% (50 bps) | Deducted from CHANSE input before curve math |
+| Sell fee | 2.5% (250 bps) | Deducted from CHANSE output after curve math |
+
+All fees stay in the curve's CHANSE reserves, which means fees accelerate progress toward graduation. At graduation, all accumulated reserves (including fees) flow into the AMM pool.
+
+### Dynamic Graduation Threshold
+
+The graduation threshold is computed from the current CHANSE/USD oracle price:
+
+```
+threshold_uchanse = target_raised_usd * 10^6 / ansem_usd_price
+```
+
+Clamped between configurable min/max bounds:
+
+| Parameter | Default |
+|-----------|---------|
+| Graduation raise | Dynamic — set by the target market cap below (oracle-based; ≈ 25,700 CHANSE with default parameters) |
+| Target starting market cap (USD) | $1,000 |
+| Target graduation market cap (USD) | $10,000 |
+| Min graduation threshold | 100,000 CHANSE |
+| Max graduation threshold | 50,000,000 CHANSE |
+
+The graduation threshold is a fixed CHANSE amount, so it is deterministic regardless of CHANSE price swings. Curve sizing uses constant-product virtual reserves chosen so the AMM pool opens at the same price the curve ends at.
+
+### Graduation Flow
+
+When `ansem_reserves >= graduation_threshold` (auto-triggered on any buy, or callable manually):
+
+1. Mark the curve as graduated (permanently closed)
+2. Transfer all remaining unsold tokens to the AMM contract
+3. Call AMM `CreatePool` with all CHANSE reserves + remaining tokens
+4. The AMM pool starts with an augmented fee (see below)
+
+---
+
+## AMM (Decentralized Exchange)
+
+The AMM is a **constant-product automated market maker** (`x * y = k`) for tokens that have graduated from the Launchpad. Swap fees stay in the pool and auto-compound, benefiting liquidity providers.
+
+### Pool Creation
+
+Pools are created **only by authorized contracts** - the Launchpad (at graduation) and the `x/tokenlaunch` module (for curated listings). Regular users cannot create pools.
+
+When a token graduates:
+
+| Asset | Amount |
+|-------|--------|
+| CHANSE | All curve reserves (~graduation threshold) |
+| Token | All unsold tokens from the curve (~20.69M) |
+
+### Swap Math
+
+Standard constant-product formula:
+
+```
+fee_amount      = input_amount * fee_bps / 10000
+input_after_fee = input_amount - fee_amount
+output_amount   = output_reserve * input_after_fee / (input_reserve + input_after_fee)
+```
+
+Fee tokens stay in the pool, increasing reserves. LP positions grow in value as fees accumulate - no claiming or compounding needed.
+
+### Fee Structure
+
+| Fee | Rate | Details |
+|-----|------|---------|
+| Base swap fee | 1% (100 bps) | Applied to all swaps, stays in pool |
+| Augmented fee | 1% (100 bps) | Extra fee on newly graduated pools |
+
+### Augmented Fee
+
+Newly graduated pools start with a temporary extra 1% fee on top of the base 1%. This protects early liquidity and discourages manipulation right after graduation.
+
+The augmented fee **auto-disables** when the pool reaches 10x its initial value:
+
+```
+pool_value = ansem_reserve * 2
+disabled when: pool_value >= initial_ansem * 10
+```
+
+No admin action needed - the check runs on every swap automatically.
+
+### Trade Routing
+
+| Direction | How |
+|-----------|-----|
+| CHANSE to Token | Send native `uchanse` with `Swap` message to AMM |
+| Token to CHANSE | CW20 `Send` to AMM with `SwapTokenForAnsem` inner message |
+
+---
+
+## Launchpad + AMM Lifecycle
+
+The full lifecycle of a token from creation through trading:
+
+```
+1. Creator pays 80K CHANSE → Launchpad creates CW20 token + bonding curve
+                                │
+2. Users buy/sell on curve      │  price rises as supply decreases
+   (0.5% buy fee, 2.5% sell)   │  fees accumulate in CHANSE reserves
+                                │
+3. CHANSE reserves hit threshold ──┘
+                                │
+4. Graduation (auto-triggered)  │  all CHANSE + unsold tokens → AMM
+                                │
+5. AMM pool created             │  augmented fee active (1% extra)
+                                │
+6. Trading continues on AMM     │  xy=k pricing, 1-2% swap fee
+                                │
+7. Pool grows to 10x value ─────┘  augmented fee auto-disabled
+```
+
+---
+
+## Bridge (Solana ↔ ansemchain)
+
+The bridge is a native chain module (`x/bridge`) with a trusted relayer architecture. It is **multi-asset**: an SPL token on Solana is locked/released, and the corresponding native coin is minted/burned on ansemchain. **CHANSE** (`uchanse`) is the priority asset; **ANSEM** (`uansem`), a 1:1 voucher for the pump.fun ANSEM SPL, is also carried, and more assets can be added. Each asset maps to its own base denom, and gas is always paid in CHANSE regardless of which asset is bridged.
+
+### Solana to ansemchain (Deposit)
+
+```
+User locks a bridged SPL token on Solana (CHANSE or ANSEM)
+  → Relayer detects lock event
+  → Relayer submits MsgMintFromBridge on ansemchain
+    - Validates: bridge enabled, caller is relayer, lock not already processed
+    - Mints the matching native coin (uchanse / uansem) to recipient
+    - Records mint (idempotent dedup by lock ID)
+    - Tracks total bridge-minted supply per asset
+```
+
+### ansemchain to Solana (Withdraw)
+
+```
+User submits MsgBurnForBridgeOut(solana_address, amount)
+  → Coins escrowed (NOT burned yet) in module account
+  → If amount > approval threshold: requires admin approval first
+  → Relayer releases the matching SPL tokens on Solana
+  → Relayer confirms release → coins burned from module account
+```
+
+Coins are escrowed rather than immediately burned. If the Solana-side release fails, the user's funds are safe.
+
+### Safety Parameters
+
+| Parameter | Default |
+|-----------|---------|
+| Max burn per tx | 1,000,000 CHANSE |
+| Max mint per tx | 1,000,000 CHANSE |
+| Max burns per block | 10 |
+| Admin approval threshold | 100,000 CHANSE |
+
+### Supply Tracking
+
+An on-chain counter (`BridgeMintedSupply`) tracks total minted supply from bridging. Users cannot burn more than has been bridged in, preventing the bridge from creating inflation.
+
+---
+
+## Telegram Bot
+
+The Telegram Bot is a self-custodial trading interface built with grammY. Users get an encrypted wallet and can trade tokens without leaving Telegram.
+
+### How It Works
+
+```
+┌──────────────┐     ┌──────────────────┐     ┌──────────────┐
+│   Telegram   │────▶│   Bot Service    │────▶│  ansemchain   │
+│   (user)     │     │                  │     │              │
+│              │◀────│  - Wallet mgmt   │◀────│  Launchpad   │
+│  /start      │     │  - Trade routing │     │  AMM         │
+│  paste addr  │     │  - Limit orders  │     │  CW20s       │
+│  /buy /sell  │     │  - Referrals     │     │              │
+└──────────────┘     └──────────────────┘     └──────────────┘
+```
+
+### Trade Routing
+
+The bot automatically routes trades to the correct contract based on token status:
+
+| Token Status | Buy Route | Sell Route |
+|-------------|-----------|------------|
+| On bonding curve | Launchpad `Buy` | CW20 Send to Launchpad |
+| Graduated | AMM `Swap` | CW20 Send to AMM |
+
+Users don't need to know which contract to interact with - the bot queries the token's graduation status and routes accordingly.
+
+### Limit Orders
+
+The bot runs a limit order monitor that polls prices every 15 seconds:
+
+- **Buy orders** trigger when price drops to or below the target
+- **Sell orders** trigger when price rises to or above the target
+- Execution uses the same routing logic as manual trades
+- Users are notified via Telegram message when orders fill
+
+### Wallet Security
+
+Each user gets a 24-word HD mnemonic wallet, encrypted at rest:
+
+- **AES-256-GCM** encryption with per-user random salt
+- Key derived via **PBKDF2-SHA512** (600,000 iterations) from a server master key
+- Mnemonics never stored in plaintext
+- Export shows mnemonic briefly, then auto-deletes the message after 30 seconds
+
+---
+
+## Backend (Indexer + API)
+
+The backend is a Node.js service that indexes chain events and provides a REST API and real-time data feeds for frontends and the Telegram bot.
+
+### Indexing Pipeline
+
+```
+ansemchain (chain RPC, polled every ~5s)
+       │
+       ▼
+  Block Poller
+  (searchTx for each block height)
+       │
+       ▼
+  Event Parser
+  (filters wasm events from Launchpad + AMM contracts)
+       │
+       ▼
+  Trade Writer (single DB transaction)
+  ├── INSERT raw_trades (idempotent via ON CONFLICT)
+  ├── UPSERT tokens (auto-discovery on first trade)
+  ├── UPDATE indexer_state (cursor)
+  └── COMMIT → SSE broadcast
+       │
+       ▼
+  TimescaleDB Continuous Aggregates
+  raw_trades → ohlcv_1m → ohlcv_5m → ohlcv_1h → ohlcv_1d
+```
+
+### API Endpoints
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/tokens` | All indexed tokens with metadata |
+| `GET /api/tokens/:address` | Single token details |
+| `GET /api/trades` | Recent trades (filterable by token) |
+| `GET /api/candles/:address` | OHLCV candles (1m, 5m, 1h, 1d timeframes) |
+| `GET /api/sse` | Server-Sent Events stream (trades, launches, graduations) |
+| `GET /api/wallet/balance` | Native CHANSE balance |
+| `GET /api/wallet/tokens` | CW20 token balances |
+| `POST /api/wallet/broadcast` | Relay signed transactions to chain |
+
+### Oracle Price Feed
+
+An oracle updater fetches the CHANSE/USD price from pump.fun every 5 minutes and submits it to the Launchpad contract. This price is used for USD display values across the apps; graduation itself is denominated in CHANSE and does not depend on the oracle.
+
+---
+
+## Custom Chain Modules
+
+### x/bridge
+
+Handles multi-asset Solana ↔ ansemchain bridging (CHANSE priority, ANSEM, and future assets) with mint/burn mechanics, relayer authorization, and admin approval for large transfers. See [Bridge Architecture](/bridge/architecture) for details.
+
+### x/tokenlaunch
+
+Provides an on-chain governance path for listing tokens directly in the AMM, bypassing the bonding curve. Only bridge-verified wallets (users who have used the Solana bridge) can vote on proposals, providing Sybil resistance.
+
+**Flow**: Submit proposal → bridge-verified wallets vote → at threshold, admin seeds AMM pool with CW20 token + CHANSE liquidity.
+
+### Standard Chain Modules
+
+| Module | Status | Notes |
+|--------|--------|-------|
+| `x/auth` | Active | Account management |
+| `x/bank` | Active | Native token transfers |
+| `x/staking` | Active | Validator operations |
+| `x/gov` | Active | On-chain governance |
+| `x/distribution` | Active | Fee reward distribution |
+| `x/mint` | **Disabled** | Zero inflation - all params set to 0 |
+| `x/wasm` | Active | CosmWasm smart contracts |
+| `x/ibc` | Active | Inter-Blockchain Communication |
+
+---
+
+## Network Endpoints
+
+| Service | Port | Protocol | Purpose |
+|---------|------|----------|---------|
+| Chain RPC | 26657 | HTTP/WS | Block queries, tx broadcast |
+| REST API | 1317 | HTTP | chain state queries |
+| gRPC | 9090 | HTTP/2 | High-performance queries |
+| Launchpad API | 3001 | HTTP | Token data, candles, SSE feeds |
+| P2P | 26656 | TCP | Node communication |

@@ -1,0 +1,39 @@
+---
+title: 'Submitting a Proposal'
+description: 'Create a yes/no or multi-option proposal'
+---
+
+# Submitting a Proposal
+
+## Cost
+
+**1 `uchanse`** (0.000001 CHANSE), sent to the community treasury as a memo-carrying transfer that encodes the proposal. There is no approval step and nobody can reject your proposal.
+
+## From the website
+
+<Steps>
+
+### Press *Submit a proposal*
+
+### Write the title and description
+
+Keep it tight: the whole proposal (title + description + options) must fit in a 256-byte transaction memo after encoding. Tweet-sized is the right mental model.
+
+### Choose the ballot type
+
+Leave it as yes/no, or enable **multi-option ballot** and add 2 to 10 options (up to 60 characters each).
+
+### Sign
+
+Your proposal appears in the feed within seconds, on the website and in the Telegram bot simultaneously.
+
+</Steps>
+
+## From Telegram
+
+In [@chanseproposalbot](/telegram/overview), tap **Submit a proposal** and follow the three steps: title, description, then either a semicolon-separated option list (`Option A; Option B; Option C`) or `skip` for yes/no.
+
+## Tips
+
+- Multi-option ballots eat memo budget per option; if submission fails for length, shorten the description or the option labels
+- The proposal ID is the transaction hash of your submission; share it to direct people to the exact proposal

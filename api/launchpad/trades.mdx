@@ -1,0 +1,88 @@
+---
+title: 'Trades'
+description: 'Query recent trades across all tokens or for a specific token'
+---
+
+# Trades
+
+Returns recent trade history from both the Launchpad bonding curves and the AMM. Trades are indexed from on-chain events and stored in a TimescaleDB hypertable.
+
+## Get Recent Trades
+
+```
+GET /api/trades/recent
+```
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `token_address` | string | (all tokens) | Filter to a specific token's CW20 contract address |
+| `limit` | number | 50 | Number of trades to return (1-100) |
+
+### Examples
+
+```bash wrap
+# Latest 50 trades across all tokens
+curl https://api.ansemchain.fun/api/trades/recent
+
+# Latest 20 trades for a specific token
+curl "https://api.ansemchain.fun/api/trades/recent?token_address=ansem1cw20contract...&limit=20"
+```
+
+### Response
+
+```json wrap
+{
+  "trades": [
+    {
+      "time": "2026-02-19T10:05:30.000Z",
+      "block_height": 152345,
+      "tx_hash": "A1B2C3D4E5F6...",
+      "source": "amm",
+      "action": "swap",
+      "direction": "ansem_to_token",
+      "token_address": "ansem1cw20contract...",
+      "price_uchanse": "52000",
+      "volume_uchanse": "100000000",
+      "volume_token": "1923076923",
+      "fee_uchanse": "1000000",
+      "trader": "ansem1useraddress...",
+      "token_name": "Example Token",
+      "token_symbol": "EXT"
+    }
+  ]
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `time` | string | Trade timestamp (ISO 8601) |
+| `block_height` | number | Block where the trade was included |
+| `tx_hash` | string | Transaction hash (use with Chain API to get full tx details) |
+| `source` | string | `"launchpad"` (bonding curve) or `"amm"` (graduated pool) |
+| `action` | string | What happened: `"buy"`, `"sell"`, `"swap"`, `"buy_and_graduate"` |
+| `direction` | string | `"ansem_to_token"` (buy) or `"token_to_ansem"` (sell) |
+| `token_address` | string | CW20 contract address of the token traded |
+| `price_uchanse` | string | Price at time of trade (uchanse per token, scaled by 10^6) |
+| `volume_uchanse` | string | CHANSE volume of this trade in `uchanse` |
+| `volume_token` | string | Token volume of this trade in micro-units |
+| `fee_uchanse` | string | Fee paid in `uchanse` |
+| `trader` | string | Address that executed the trade |
+| `token_name` | string \| null | Token name (joined from token metadata) |
+| `token_symbol` | string \| null | Token symbol |
+
+### Understanding Actions
+
+| Action | Source | Meaning |
+|--------|--------|---------|
+| `buy` | launchpad | Bought tokens on the bonding curve |
+| `sell` | launchpad | Sold tokens back to the bonding curve |
+| `buy_and_graduate` | launchpad | Buy that triggered graduation (curve closed, AMM pool created) |
+| `swap` | amm | Swapped on the AMM (either direction) |
+
+### Ordering
+
+Trades are returned in reverse chronological order (newest first).

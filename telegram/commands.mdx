@@ -1,0 +1,39 @@
+---
+title: 'Commands'
+description: 'Command reference for the Ansem Telegram bots'
+---
+
+# Command Reference
+
+## Shared by all bots
+
+| Command | Action |
+|---|---|
+| `/start` | Create a wallet or show the main menu |
+| `/help` | Usage help |
+| `/export` | Export your private key / seed phrase |
+| `/import` | Import an existing wallet |
+
+## @chansetradebot
+
+| Command | Action |
+|---|---|
+| `/balance` | CHANSE, ANSEM, and token balances |
+| `/send` | Send CHANSE, ANSEM, or tokens |
+| `/referral` | Your referral link and stats |
+| *paste a token address* | Instant trade card for that token |
+
+Menus cover buying, selling, limit orders, open positions, and the proposal feed.
+
+## @chansebridgebot
+
+Menu-driven: **Deposit** (Solana -> ansemchain) and **Withdraw** (ansemchain -> Solana) for both CHANSE and ANSEM, plus balances on both sides and transaction history. Bridge transfers typically land in under a minute.
+
+## @chanseproposalbot
+
+| Command | Action |
+|---|---|
+| `/balance` | Your CHANSE balance (proposals and votes cost only 1 `uchanse`) |
+| `/send` | Send CHANSE |
+
+Menus cover the proposal feed, per-proposal voting (yes/no buttons or one button per option), and the three-step submission flow.

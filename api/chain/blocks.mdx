@@ -1,0 +1,97 @@
+---
+title: 'Blocks'
+description: 'Query block data by height or get the latest block'
+---
+
+# Blocks
+
+Retrieve block headers, transaction lists, and consensus metadata for any block on ansemchain.
+
+## Get Latest Block
+
+Returns the most recently finalized block.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/blocks/latest
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "block_id": {
+    "hash": "A1B2C3D4...",
+    "part_set_header": {
+      "total": 1,
+      "hash": "E5F6G7H8..."
+    }
+  },
+  "block": {
+    "header": {
+      "chain_id": "ansem-1",
+      "height": "152340",
+      "time": "2026-02-19T10:00:00.000Z",
+      "proposer_address": "ABC123..."
+    },
+    "data": {
+      "txs": ["base64-encoded-tx-1", "base64-encoded-tx-2"]
+    },
+    "last_commit": {
+      "height": "152339",
+      "signatures": [...]
+    }
+  }
+}
+```
+</Accordion>
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `block.header.chain_id` | Chain identifier (`ansem-1` for mainnet) |
+| `block.header.height` | Block number as a string |
+| `block.header.time` | Block timestamp in RFC 3339 format |
+| `block.header.proposer_address` | Hex-encoded address of the validator that proposed this block |
+| `block.data.txs` | Array of base64-encoded transactions included in this block |
+| `block.last_commit.signatures` | Validator signatures from the previous block's commit |
+
+## Get Block by Height
+
+Retrieve a specific block by its height.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/blocks/152340
+```
+
+The response format is identical to the latest block endpoint.
+
+### Errors
+
+| Case | Response |
+|------|----------|
+| Height not yet reached | `400` - block height is ahead of the chain |
+| Height = 0 | `400` - invalid height |
+| Negative height | `400` - invalid argument |
+
+## Useful Patterns
+
+### Check Current Block Height
+
+```bash wrap
+curl -s https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/blocks/latest \
+  | jq '.block.header.height'
+```
+
+### Get Block Timestamp
+
+```bash wrap
+curl -s https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/blocks/152340 \
+  | jq '.block.header.time'
+```
+
+### Count Transactions in a Block
+
+```bash wrap
+curl -s https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/blocks/152340 \
+  | jq '.block.data.txs | length'
+```

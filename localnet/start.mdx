@@ -1,0 +1,340 @@
+---
+title: 'Managing Localnet'
+description: 'Start, stop, and monitor your local development network'
+---
+
+# Managing Localnet
+
+Control your local ansemchain with `ansem localnet` commands.
+
+## Start Localnet
+
+```bash wrap
+ansem localnet start
+```
+
+<Accordion title="Output">
+```
+Starting CHANSE localnet...
+
+Initializing chain...
+Creating test accounts...
+Starting node...
+
+Localnet Started!
+
+RPC:  http://localhost:26657
+REST: http://localhost:1317
+gRPC: localhost:9090
+
+Test Accounts:
+  alice   ansem1alice...  1,000,000 CHANSE
+  bob     ansem1bob...    500,000 CHANSE
+
+Use 'ansem localnet stop' to stop the network
+```
+</Accordion>
+
+### Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--background` | Run in background | false |
+| `--reset` | Clear existing data first | false |
+
+### Run in Background
+
+```bash wrap
+ansem localnet start --background
+```
+
+Logs are written to `~/.ansem-localnet/node.log`.
+
+### Fresh Start
+
+Clear existing data and start fresh:
+
+```bash wrap
+ansem localnet start --reset
+```
+
+## Check Status
+
+```bash wrap
+ansem localnet status
+```
+
+<Accordion title="Output (Running)">
+```
+Localnet Status: Running
+
+Node:     PID 12345
+Uptime:   2h 34m
+Block:    1,234
+
+Endpoints:
+  RPC:  http://localhost:26657 ✓
+  REST: http://localhost:1317  ✓
+  gRPC: localhost:9090         ✓
+
+Accounts:
+  alice   ansem1alice...   998,500 CHANSE
+  bob     ansem1bob...     500,000 CHANSE
+```
+</Accordion>
+
+<Accordion title="Output (Stopped)">
+```
+Localnet Status: Stopped
+
+No localnet is currently running.
+Run 'ansem localnet start' to start one.
+```
+</Accordion>
+
+## Stop Localnet
+
+```bash wrap
+ansem localnet stop
+```
+
+<Accordion title="Output">
+```
+Stopping CHANSE localnet...
+
+Node stopped (PID 12345)
+Localnet stopped successfully.
+
+Data preserved in ~/.ansem-localnet/
+Run 'ansem localnet start' to resume.
+```
+</Accordion>
+
+### Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--clean` | Also remove all data | false |
+
+### Stop and Clean
+
+Remove all data when stopping:
+
+```bash wrap
+ansem localnet stop --clean
+```
+
+## View Logs
+
+When running in background:
+
+```bash wrap
+# Follow logs
+tail -f ~/.ansem-localnet/node.log
+
+# Last 100 lines
+tail -100 ~/.ansem-localnet/node.log
+
+# Search for errors
+grep -i error ~/.ansem-localnet/node.log
+```
+
+## Lifecycle
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Localnet Lifecycle                    │
+└─────────────────────────────────────────────────────────┘
+
+   ┌──────────┐    ansem localnet start    ┌─────────┐
+   │ Stopped  │ ───────────────────────▶ │ Running │
+   └──────────┘                          └─────────┘
+        ▲                                     │
+        │           ansem localnet stop         │
+        └─────────────────────────────────────┘
+
+   State persists between stop/start (unless --reset or --clean)
+```
+
+## Common Workflows
+
+### Development Session
+
+```bash wrap
+# Morning: Start localnet
+ansem localnet start --background
+
+# Work...deploy contracts, test, etc.
+
+# Evening: Stop localnet
+ansem localnet stop
+```
+
+### Quick Reset
+
+```bash wrap
+# Something went wrong, start fresh
+ansem localnet stop --clean
+ansem localnet start
+```
+
+### Check Health
+
+```bash wrap
+# Is localnet running?
+ansem localnet status
+
+# Can I reach the RPC?
+curl http://localhost:26657/status
+
+# What block are we on?
+curl http://localhost:26657/status | jq '.result.sync_info.latest_block_height'
+```
+
+## Environment Integration
+
+### With Scripts
+
+```bash wrap
+#!/bin/bash
+
+# Ensure localnet is running
+if ! ansem localnet status | grep -q "Running"; then
+  echo "Starting localnet..."
+  ansem localnet start --background
+  sleep 5  # Wait for startup
+fi
+
+# Run tests
+./run-tests.sh
+
+# Optionally stop
+# ansem localnet stop
+```
+
+### With Make
+
+```makefile wrap
+.PHONY: localnet-start localnet-stop test
+
+localnet-start:
+	ansem localnet start --background
+
+localnet-stop:
+	ansem localnet stop
+
+test: localnet-start
+	./run-tests.sh
+```
+
+### With Docker Compose
+
+If you prefer Docker:
+
+```yaml wrap
+version: '3'
+services:
+  ansem-localnet:
+    image: ansem-chain:latest
+    ports:
+      - "26657:26657"
+      - "1317:1317"
+      - "9090:9090"
+    volumes:
+      - ansem-data:/root/.ansem
+volumes:
+  ansem-data:
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Start fails with 'port in use'">
+    Another process is using required ports:
+    ```bash
+    # Find what's using port 26657
+    lsof -i :26657
+
+    # Kill it
+    kill -9 <PID>
+
+    # Or check for zombie localnet
+    ansem localnet stop
+    ```
+  </Accordion>
+
+  <Accordion title="Start fails with 'permission denied'">
+    Check data directory permissions:
+    ```bash
+    ls -la ~/.ansem-localnet/
+
+    # Fix if needed
+    chmod -R 755 ~/.ansem-localnet/
+    ```
+  </Accordion>
+
+  <Accordion title="Node crashes immediately">
+    Check logs for errors:
+    ```bash
+    cat ~/.ansem-localnet/node.log | tail -50
+    ```
+
+    Often fixed by resetting:
+    ```bash
+    ansem localnet start --reset
+    ```
+  </Accordion>
+
+  <Accordion title="Status shows running but can't connect">
+    The node process may be stuck:
+    ```bash
+    # Force stop
+    ansem localnet stop
+
+    # Kill any remaining processes
+    pkill -f ansemd
+
+    # Start fresh
+    ansem localnet start --reset
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Configuration
+
+### Custom Genesis
+
+To customize genesis parameters:
+
+```bash wrap
+# Stop localnet
+ansem localnet stop
+
+# Edit genesis
+vim ~/.ansem-localnet/config/genesis.json
+
+# Start with existing config
+ansem localnet start
+```
+
+### Custom Ports
+
+Edit `~/.ansem-localnet/config/config.toml`:
+
+```toml wrap
+[rpc]
+laddr = "tcp://0.0.0.0:26657"
+
+[p2p]
+laddr = "tcp://0.0.0.0:26656"
+```
+
+And `~/.ansem-localnet/config/app.toml`:
+
+```toml wrap
+[api]
+address = "tcp://0.0.0.0:1317"
+
+[grpc]
+address = "0.0.0.0:9090"
+```

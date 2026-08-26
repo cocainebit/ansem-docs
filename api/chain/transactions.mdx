@@ -1,0 +1,158 @@
+---
+title: 'Transactions'
+description: 'Query transactions by hash, block height, sender, or recipient'
+---
+
+# Transactions
+
+Look up individual transactions or search for transactions matching specific criteria.
+
+## Get Transaction by Hash
+
+Retrieve a single transaction and its execution result by its hash.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs/A1B2C3D4E5F6...
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "tx": {
+    "body": {
+      "messages": [
+        {
+          "@type": "/cosmos.bank.v1beta1.MsgSend",
+          "from_address": "ansem1sender...",
+          "to_address": "ansem1recipient...",
+          "amount": [{"denom": "uchanse", "amount": "1000000"}]
+        }
+      ],
+      "memo": ""
+    },
+    "auth_info": {
+      "signer_infos": [...],
+      "fee": {
+        "amount": [{"denom": "uchanse", "amount": "5000"}],
+        "gas_limit": "200000"
+      }
+    },
+    "signatures": ["base64-signature..."]
+  },
+  "tx_response": {
+    "height": "152340",
+    "txhash": "A1B2C3D4E5F6...",
+    "code": 0,
+    "raw_log": "[{\"events\":[...]}]",
+    "gas_wanted": "200000",
+    "gas_used": "150000",
+    "timestamp": "2026-02-19T10:00:00Z",
+    "events": [...]
+  }
+}
+```
+</Accordion>
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `tx.body.messages` | Array of messages (actions) in this transaction |
+| `tx.auth_info.fee` | Gas fee paid by the signer |
+| `tx_response.code` | `0` = success, non-zero = error (see `raw_log` for details) |
+| `tx_response.height` | Block height where this tx was included |
+| `tx_response.gas_wanted` / `gas_used` | Gas limits and actual consumption |
+| `tx_response.events` | Emitted events (useful for tracking wasm contract actions) |
+
+### Common Message Types
+
+| `@type` | Description |
+|---------|-------------|
+| `/cosmos.bank.v1beta1.MsgSend` | Native token transfer |
+| `/cosmos.staking.v1beta1.MsgDelegate` | Stake tokens with a validator |
+| `/cosmwasm.wasm.v1.MsgExecuteContract` | Execute a smart contract (swaps, buys, etc.) |
+| `/cosmwasm.wasm.v1.MsgInstantiateContract` | Create a new contract instance |
+| `/ansem.bridge.v1.MsgBurnForBridgeOut` | Withdraw CHANSE to Solana |
+
+## Search Transactions
+
+Search for transactions matching event filters. At least one filter is required.
+
+### By Sender
+
+```bash wrap
+curl "https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs?events=message.sender='ansem1sender...'&order_by=ORDER_BY_DESC&pagination.limit=20"
+```
+
+### By Recipient
+
+```bash wrap
+curl "https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs?events=transfer.recipient='ansem1recipient...'&order_by=ORDER_BY_DESC&pagination.limit=20"
+```
+
+### By Block Height
+
+```bash wrap
+curl "https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs?events=tx.height=152340&order_by=ORDER_BY_ASC"
+```
+
+### By Message Type
+
+```bash wrap
+curl "https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs?events=message.action='/cosmwasm.wasm.v1.MsgExecuteContract'&pagination.limit=10"
+```
+
+### Search Response
+
+```json wrap
+{
+  "txs": [...],
+  "tx_responses": [
+    {
+      "height": "152340",
+      "txhash": "A1B2C3...",
+      "code": 0,
+      "gas_used": "150000",
+      "timestamp": "2026-02-19T10:00:00Z"
+    }
+  ],
+  "pagination": {
+    "next_key": "base64-cursor...",
+    "total": "42"
+  }
+}
+```
+
+## Broadcast Transaction
+
+Submit a signed transaction to the network.
+
+```bash wrap
+curl -X POST https://rest.ansemchain.fun/cosmos/tx/v1beta1/txs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tx_bytes": "base64-encoded-signed-tx",
+    "mode": "BROADCAST_MODE_SYNC"
+  }'
+```
+
+### Broadcast Modes
+
+| Mode | Behavior |
+|------|----------|
+| `BROADCAST_MODE_SYNC` | Wait for CheckTx validation, then return. **Recommended for production.** |
+| `BROADCAST_MODE_ASYNC` | Return immediately without validation. |
+
+## Simulate Transaction
+
+Estimate gas for a transaction without broadcasting it.
+
+```bash wrap
+curl -X POST https://rest.ansemchain.fun/cosmos/tx/v1beta1/simulate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tx_bytes": "base64-encoded-tx"
+  }'
+```
+
+Returns the estimated `gas_used` which you can multiply by 1.3-1.5 for a safe `gas_limit`.

@@ -1,0 +1,50 @@
+---
+title: 'Graduation'
+description: 'How a bonding curve becomes a permanent AMM pool'
+---
+
+# Graduation
+
+Graduation is the moment a token outgrows its bonding curve and becomes a freely traded asset with permanent liquidity.
+
+## The trigger
+
+A token graduates when it reaches its **target market cap**. The target is derived from the oracle price (a target raised-USD threshold), with an optional fixed CHANSE override. The exact CHANSE raised at graduation therefore depends on the curve parameters and the CHANSE/USD price; with default parameters it works out to ≈ 25,700 CHANSE.
+
+## What happens
+
+<Steps>
+
+### The triggering buy completes
+
+The buy that reaches the target market cap executes normally; the buyer receives their tokens.
+
+### The curve closes permanently
+
+No further buys or sells can touch the curve.
+
+### The AMM pool is created and seeded
+
+The full CHANSE raised plus the reserved 20.69% of supply (20,690 tokens) are deposited as the pool's initial liquidity.
+
+### The LP is locked forever
+
+The seeded liquidity position can never be withdrawn. There is no rug: the raised-CHANSE floor is permanent.
+
+</Steps>
+
+## Price continuity
+
+The pool opens at **the same price the curve ended at**. Curve buyers do not get marked down at graduation. By the numbers:
+
+| | Value |
+|---|---|
+| Final curve price | Set by the curve's final state |
+| Pool opening price | Identical to the final curve price |
+| Graduation market cap | Set by the target (oracle-based) |
+| Pool depth | Raised CHANSE + 20,690 tokens, locked |
+| Liquidity token side as a share of supply | 20.69% |
+
+## After graduation
+
+The token trades on the [AMM](/amm/overview) with a 1% base swap fee. Anyone can add additional liquidity on top of the locked seed and withdraw their own share at any time; only the graduation seed is locked. The 2.25% max wallet continues to apply on every AMM swap.

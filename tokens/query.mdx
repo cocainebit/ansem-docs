@@ -1,0 +1,299 @@
+---
+title: 'Query Tokens'
+description: 'Check token balances and metadata'
+---
+
+# Query Tokens
+
+Query CW20 token information without submitting transactions.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `ansem token balance` | Check balance for an address |
+| `ansem token info` | View token metadata |
+| `ansem token list` | List all tokens you hold |
+
+## Token Balance
+
+Check the token balance of any address:
+
+```bash wrap
+ansem token balance <contract> <address>
+```
+
+Or by key name:
+
+```bash wrap
+ansem token balance <contract> --key <name>
+```
+
+### Example
+
+```bash wrap
+ansem token balance ansem1tokencontract... ansem1myaddress...
+```
+
+Output:
+```
+Token Balance
+
+Contract: ansem1tokencontract...
+Address:  ansem1myaddress...
+Name:     My Token
+Symbol:   MTK
+Decimals: 6
+Balance:  1,000,000,000 (1,000 MTK)
+```
+
+### JSON Output
+
+```bash wrap
+ansem token balance ansem1tokencontract... --key mykey --output json
+```
+
+```json wrap
+{
+  "contract": "ansem1tokencontract...",
+  "address": "ansem1myaddress...",
+  "name": "My Token",
+  "symbol": "MTK",
+  "decimals": 6,
+  "balance": "1000000000"
+}
+```
+
+## Token Info
+
+View token metadata and supply:
+
+```bash wrap
+ansem token info <contract>
+```
+
+### Example
+
+```bash wrap
+ansem token info ansem1tokencontract...
+```
+
+Output:
+```
+Token Information
+
+Contract:     ansem1tokencontract...
+Name:         My Token
+Symbol:       MTK
+Decimals:     6
+Total Supply: 1,000,000,000,000 (1,000,000 MTK)
+
+Minter:       ansem1minteraddress...
+Cap:          Unlimited
+```
+
+### JSON Output
+
+```bash wrap
+ansem token info ansem1tokencontract... --output json
+```
+
+```json wrap
+{
+  "contract": "ansem1tokencontract...",
+  "name": "My Token",
+  "symbol": "MTK",
+  "decimals": 6,
+  "total_supply": "1000000000000",
+  "minter": "ansem1minteraddress...",
+  "cap": null
+}
+```
+
+## Token List
+
+List all CW20 tokens you hold:
+
+```bash wrap
+ansem token list --key <name>
+```
+
+Or by address:
+
+```bash wrap
+ansem token list <address>
+```
+
+### Example
+
+```bash wrap
+ansem token list --key mykey
+```
+
+Output:
+```
+Tokens held by ansem1myaddress...
+
+CONTRACT                                    SYMBOL  DECIMALS  BALANCE
+ansem1tokencontract1...                       MTK     6         1,000,000,000
+ansem1tokencontract2...                       USDC    6         500,000,000
+ansem1tokencontract3...                       TEST    6         100,000
+```
+
+<Note>
+Token list queries the contracts configured in `cw20-tokens`. Add tokens with:
+```bash wrap
+ansem config set cw20-tokens ansem1token1...,ansem1token2...
+```
+</Note>
+
+### JSON Output
+
+```bash wrap
+ansem token list --key mykey --output json
+```
+
+```json wrap
+{
+  "address": "ansem1myaddress...",
+  "tokens": [
+    {
+      "contract": "ansem1tokencontract1...",
+      "symbol": "MTK",
+      "decimals": 6,
+      "balance": "1000000000"
+    },
+    {
+      "contract": "ansem1tokencontract2...",
+      "symbol": "USDC",
+      "decimals": 6,
+      "balance": "500000000"
+    }
+  ]
+}
+```
+
+## Raw Contract Queries
+
+For advanced queries, use `ansem program query`:
+
+### Balance Query
+
+```bash wrap
+ansem program query ansem1tokencontract... '{"balance":{"address":"ansem1addr..."}}'
+```
+
+```json wrap
+{
+  "balance": "1000000000"
+}
+```
+
+### Token Info Query
+
+```bash wrap
+ansem program query ansem1tokencontract... '{"token_info":{}}'
+```
+
+```json wrap
+{
+  "name": "My Token",
+  "symbol": "MTK",
+  "decimals": 6,
+  "total_supply": "1000000000000"
+}
+```
+
+### Minter Query
+
+```bash wrap
+ansem program query ansem1tokencontract... '{"minter":{}}'
+```
+
+```json wrap
+{
+  "minter": "ansem1minteraddress...",
+  "cap": null
+}
+```
+
+### All Accounts Query
+
+```bash wrap
+ansem program query ansem1tokencontract... '{"all_accounts":{"limit":10}}'
+```
+
+```json wrap
+{
+  "accounts": [
+    "ansem1addr1...",
+    "ansem1addr2...",
+    "ansem1addr3..."
+  ]
+}
+```
+
+## Scripting Examples
+
+### Check Balance Threshold
+
+```bash wrap
+#!/bin/bash
+CONTRACT="ansem1tokencontract..."
+ADDRESS="ansem1myaddress..."
+THRESHOLD=1000000
+
+BALANCE=$(ansem token balance $CONTRACT $ADDRESS --output json | jq -r '.balance')
+
+if [ "$BALANCE" -lt "$THRESHOLD" ]; then
+  echo "Warning: Balance ($BALANCE) below threshold ($THRESHOLD)"
+fi
+```
+
+### Export Holdings to CSV
+
+```bash wrap
+ansem token list --key mykey --output json | \
+  jq -r '.tokens[] | [.contract, .symbol, .balance] | @csv' > holdings.csv
+```
+
+### Monitor Supply Changes
+
+```bash wrap
+#!/bin/bash
+CONTRACT="ansem1tokencontract..."
+
+while true; do
+  SUPPLY=$(ansem token info $CONTRACT --output json | jq -r '.total_supply')
+  echo "$(date): Total Supply = $SUPPLY"
+  sleep 60
+done
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Contract not found">
+    Verify the contract address:
+    ```bash
+    ansem program info ansem1tokencontract...
+    ```
+  </Accordion>
+
+  <Accordion title="No tokens in list">
+    Add tokens to track:
+    ```bash
+    ansem config set cw20-tokens ansem1token1...,ansem1token2...
+    ansem token list --key mykey
+    ```
+  </Accordion>
+
+  <Accordion title="Connection error">
+    Check node is running:
+    ```bash
+    ansem localnet status
+    # or
+    curl https://rpc.ansemchain.fun/status
+    ```
+  </Accordion>
+</AccordionGroup>

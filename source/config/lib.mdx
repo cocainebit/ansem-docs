@@ -1,0 +1,263 @@
+---
+title: 'lib.rs'
+description: 'Module wiring: declares the contract''s modules and re-exports.'
+---
+
+Module wiring: declares the contract's modules and re-exports.
+
+<Info>Live source from `contracts/config/src/lib.rs` (253 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+// ansem-config: on-chain service registry. Single source of truth for
+// contract addresses + endpoint overrides that the wallet extension,
+// bridge dApp, launchpad frontend, and relayer all read at runtime.
+//
+// Anything that might need to rotate post-launch lives here so clients
+// never need a code change to follow.
+
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{
+    entry_point, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult,
+};
+use cw2::set_contract_version;
+use cw_storage_plus::Item;
+use thiserror::Error;
+
+const CONTRACT_NAME: &str = "crates.io:ansem-config";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cw_serde]
+pub struct Config {
+    /// Schema version. Bumped on incompatible Config-shape changes so
+    /// frozen extensions can detect mismatches and degrade gracefully.
+    pub version: u32,
+
+    /// Admin authorized to call UpdateConfig. Rotate via UpdateAdmin
+    /// (admin -> new_admin handoff is single-step; multisig recommended).
+    pub admin: Addr,
+
+    /// CosmWasm contract addresses on ansemchain.
+    pub amm_contract: String,
+    pub launchpad_contract: String,
+    pub oracle_contract: String,
+    pub vesting_code_id: u64,
+    pub names_contract: String,
+
+    /// Solana side. Bridge program ID also exists in bridge.Params for
+    /// redundancy; clients may read either. Empty string disables.
+    pub solana_bridge_program_id: String,
+    pub solana_ansem_spl_mint: String,
+
+    /// Optional Solana RPC override. Empty = clients use their bundled
+    /// default. Set this if Helius (or whichever provider) ever fails.
+    pub solana_rpc_url_override: String,
+
+    /// Optional CHANSE chain endpoint overrides. Empty = clients use
+    /// their bundled DNS defaults. Set these only in a disaster-recovery
+    /// scenario where DNS itself fails.
+    pub ansem_rpc_url_override: String,
+    pub ansem_rest_url_override: String,
+
+    /// Reserved slots for protocols/integrations we haven't built yet.
+    /// Locking these into the schema today means future additions are
+    /// `UpdateConfig` calls instead of contract migrations + extension
+    /// re-submissions. Empty strings ignored by clients.
+    pub reserved_addr_1: String,
+    pub reserved_addr_2: String,
+    pub reserved_addr_3: String,
+    pub reserved_addr_4: String,
+    pub reserved_addr_5: String,
+    pub reserved_int_1: u64,
+    pub reserved_int_2: u64,
+    pub reserved_int_3: u64,
+    pub reserved_int_4: u64,
+    pub reserved_int_5: u64,
+}
+
+pub const SCHEMA_VERSION: u32 = 1;
+
+const CONFIG: Item<Config> = Item::new("config");
+
+#[cw_serde]
+pub struct InstantiateMsg {
+    pub admin: String,
+    pub amm_contract: String,
+    pub launchpad_contract: String,
+    pub oracle_contract: String,
+    pub vesting_code_id: u64,
+    pub names_contract: String,
+    pub solana_bridge_program_id: String,
+    pub solana_ansem_spl_mint: String,
+    /// All overrides default to "" — set only when needed.
+    #[serde(default)]
+    pub solana_rpc_url_override: String,
+    #[serde(default)]
+    pub ansem_rpc_url_override: String,
+    #[serde(default)]
+    pub ansem_rest_url_override: String,
+}
+
+#[cw_serde]
+pub enum ExecuteMsg {
+    /// Update any subset of fields. None preserves the existing value.
+    UpdateConfig {
+        amm_contract: Option<String>,
+        launchpad_contract: Option<String>,
+        oracle_contract: Option<String>,
+        vesting_code_id: Option<u64>,
+        names_contract: Option<String>,
+        solana_bridge_program_id: Option<String>,
+        solana_ansem_spl_mint: Option<String>,
+        solana_rpc_url_override: Option<String>,
+        ansem_rpc_url_override: Option<String>,
+        ansem_rest_url_override: Option<String>,
+        reserved_addr_1: Option<String>,
+        reserved_addr_2: Option<String>,
+        reserved_addr_3: Option<String>,
+        reserved_addr_4: Option<String>,
+        reserved_addr_5: Option<String>,
+        reserved_int_1: Option<u64>,
+        reserved_int_2: Option<u64>,
+        reserved_int_3: Option<u64>,
+        reserved_int_4: Option<u64>,
+        reserved_int_5: Option<u64>,
+    },
+    /// Rotate admin. Single-step; recommend multisig for the new admin.
+    UpdateAdmin { new_admin: String },
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    /// Returns the full Config. Single round-trip for all consumers.
+    #[returns(Config)]
+    Config {},
+}
+
+#[derive(Error, Debug)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] cosmwasm_std::StdError),
+    #[error("Unauthorized: caller is not admin")]
+    Unauthorized,
+    #[error("Invalid address: {0}")]
+    InvalidAddress(String),
+}
+
+#[entry_point]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let admin = deps
+        .api
+        .addr_validate(&msg.admin)
+        .map_err(|e| ContractError::InvalidAddress(e.to_string()))?;
+    let cfg = Config {
+        version: SCHEMA_VERSION,
+        admin,
+        amm_contract: msg.amm_contract,
+        launchpad_contract: msg.launchpad_contract,
+        oracle_contract: msg.oracle_contract,
+        vesting_code_id: msg.vesting_code_id,
+        names_contract: msg.names_contract,
+        solana_bridge_program_id: msg.solana_bridge_program_id,
+        solana_ansem_spl_mint: msg.solana_ansem_spl_mint,
+        solana_rpc_url_override: msg.solana_rpc_url_override,
+        ansem_rpc_url_override: msg.ansem_rpc_url_override,
+        ansem_rest_url_override: msg.ansem_rest_url_override,
+        reserved_addr_1: String::new(),
+        reserved_addr_2: String::new(),
+        reserved_addr_3: String::new(),
+        reserved_addr_4: String::new(),
+        reserved_addr_5: String::new(),
+        reserved_int_1: 0,
+        reserved_int_2: 0,
+        reserved_int_3: 0,
+        reserved_int_4: 0,
+        reserved_int_5: 0,
+    };
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::new().add_attribute("action", "instantiate"))
+}
+
+#[entry_point]
+pub fn execute(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+    if info.sender != cfg.admin {
+        return Err(ContractError::Unauthorized);
+    }
+    match msg {
+        ExecuteMsg::UpdateConfig {
+            amm_contract,
+            launchpad_contract,
+            oracle_contract,
+            vesting_code_id,
+            names_contract,
+            solana_bridge_program_id,
+            solana_ansem_spl_mint,
+            solana_rpc_url_override,
+            ansem_rpc_url_override,
+            ansem_rest_url_override,
+            reserved_addr_1,
+            reserved_addr_2,
+            reserved_addr_3,
+            reserved_addr_4,
+            reserved_addr_5,
+            reserved_int_1,
+            reserved_int_2,
+            reserved_int_3,
+            reserved_int_4,
+            reserved_int_5,
+        } => {
+            if let Some(v) = amm_contract { cfg.amm_contract = v; }
+            if let Some(v) = launchpad_contract { cfg.launchpad_contract = v; }
+            if let Some(v) = oracle_contract { cfg.oracle_contract = v; }
+            if let Some(v) = vesting_code_id { cfg.vesting_code_id = v; }
+            if let Some(v) = names_contract { cfg.names_contract = v; }
+            if let Some(v) = solana_bridge_program_id { cfg.solana_bridge_program_id = v; }
+            if let Some(v) = solana_ansem_spl_mint { cfg.solana_ansem_spl_mint = v; }
+            if let Some(v) = solana_rpc_url_override { cfg.solana_rpc_url_override = v; }
+            if let Some(v) = ansem_rpc_url_override { cfg.ansem_rpc_url_override = v; }
+            if let Some(v) = ansem_rest_url_override { cfg.ansem_rest_url_override = v; }
+            if let Some(v) = reserved_addr_1 { cfg.reserved_addr_1 = v; }
+            if let Some(v) = reserved_addr_2 { cfg.reserved_addr_2 = v; }
+            if let Some(v) = reserved_addr_3 { cfg.reserved_addr_3 = v; }
+            if let Some(v) = reserved_addr_4 { cfg.reserved_addr_4 = v; }
+            if let Some(v) = reserved_addr_5 { cfg.reserved_addr_5 = v; }
+            if let Some(v) = reserved_int_1 { cfg.reserved_int_1 = v; }
+            if let Some(v) = reserved_int_2 { cfg.reserved_int_2 = v; }
+            if let Some(v) = reserved_int_3 { cfg.reserved_int_3 = v; }
+            if let Some(v) = reserved_int_4 { cfg.reserved_int_4 = v; }
+            if let Some(v) = reserved_int_5 { cfg.reserved_int_5 = v; }
+            CONFIG.save(deps.storage, &cfg)?;
+            Ok(Response::new().add_attribute("action", "update_config"))
+        }
+        ExecuteMsg::UpdateAdmin { new_admin } => {
+            let new = deps
+                .api
+                .addr_validate(&new_admin)
+                .map_err(|e| ContractError::InvalidAddress(e.to_string()))?;
+            cfg.admin = new;
+            CONFIG.save(deps.storage, &cfg)?;
+            Ok(Response::new().add_attribute("action", "update_admin"))
+        }
+    }
+}
+
+#[entry_point]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+    }
+}
+```

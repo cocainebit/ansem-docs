@@ -1,0 +1,112 @@
+---
+title: 'AMM Overview'
+description: 'Constant-product automated market maker for graduated tokens'
+---
+
+# AMM Overview
+
+The CHANSE AMM is a **constant-product automated market maker** that provides trading for tokens that have graduated from the [Launchpad](/launchpad/overview). It uses the standard `x * y = k` formula, where trading fees stay in the pool to benefit liquidity providers.
+
+## How It Works
+
+The AMM maintains pools of two assets: **CHANSE** and a **CW20 token**. The product of both reserves stays constant (minus fees):
+
+```
+ansem_reserve * token_reserve = k (constant)
+```
+
+When you swap CHANSE for tokens, you add CHANSE to the pool and remove tokens. The price adjusts automatically based on the ratio of reserves.
+
+<Note>
+The quote side is set per pool. It defaults to **CHANSE** (`uchanse`), but a pool can instead be quoted in **ANSEM** (`uansem`, the bridged voucher) when the token was launched ANSEM-denominated. The pool math is identical either way; only the native denom on the quote side differs. Note that ANSEM is not a gas token, so fees are still paid in CHANSE.
+</Note>
+
+### Price Formula
+
+```
+output = output_reserve * input_after_fee / (input_reserve + input_after_fee)
+```
+
+Larger trades relative to pool size have more **price impact** (slippage). Deeper pools provide better prices.
+
+## Pool Creation
+
+Pools are created **automatically** when a launchpad token graduates. Only the launchpad contract (an authorized creator) can create new pools.
+
+When a token graduates (its target market cap is reached):
+
+| Asset | Amount Added to Pool |
+|-------|---------------------|
+| CHANSE | All curve reserves |
+| Token | The reserved 20.69% of supply (20,690 tokens) |
+
+This creates a pool with deep initial liquidity from day one.
+
+## Fee Structure
+
+| Fee | Rate | Details |
+|-----|------|---------|
+| Base swap fee | 1% (100 bps) | Applied to all swaps; stays in the pool |
+| Augmented fee | 0-5% (optional) | Extra fee on new pools; auto-disables at target |
+
+### How Fees Work
+
+Swap fees are deducted from your input before the trade calculation. The fee tokens stay in the pool, increasing reserves. This means LP positions grow in value over time as fees accumulate -- the fee auto-compounds.
+
+### Augmented Fee
+
+Newly graduated pools may have a temporary augmented fee (up to 5%) on top of the base 1%. This extra fee auto-disables once the pool's total value reaches a target threshold. You can check the status:
+
+```json wrap
+{ "augmented_fee_status": { "token_address": "<cw20_token_address>" } }
+```
+
+Returns whether the augmented fee is `active`, the current pool value, and progress toward the target.
+
+## Querying Pool Info
+
+Get the current state of any pool:
+
+```json wrap
+{ "pool": { "token_address": "<cw20_token_address>" } }
+```
+
+Returns:
+
+```typescript wrap
+{
+  token_address: string;
+  ansem_reserve: string;      // CHANSE in pool (uchanse)
+  token_reserve: string;    // Tokens in pool (micro-units)
+  lp_token_address: string; // LP token contract
+  lp_total_supply: string;  // Total LP tokens minted
+  price: string;            // Current price: CHANSE per token
+}
+```
+
+## Listing All Pools
+
+```json wrap
+{
+  "all_pools": {
+    "start_after": null,
+    "limit": 10
+  }
+}
+```
+
+Returns up to 30 pools per page. Pass the last `token_address` as `start_after` for pagination.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Swapping" icon="repeat" href="/amm/swapping">
+    Trade tokens on the AMM
+  </Card>
+  <Card title="Liquidity" icon="droplet" href="/amm/liquidity">
+    Understand LP tokens and pool mechanics
+  </Card>
+  <Card title="Launchpad" icon="rocket" href="/launchpad/overview">
+    How tokens reach the AMM via graduation
+  </Card>
+</CardGroup>

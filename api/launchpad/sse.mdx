@@ -1,0 +1,131 @@
+---
+title: 'SSE Feed'
+description: 'Real-time Server-Sent Events for trades, token launches, and graduations'
+---
+
+# SSE Feed
+
+Subscribe to a real-time stream of events from the Launchpad and AMM. The SSE (Server-Sent Events) feed pushes trades, new token launches, and graduation events as they happen - no polling required.
+
+## Endpoint
+
+```
+GET /api/sse/feed
+```
+
+This is a long-lived HTTP connection that streams events using the [SSE protocol](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events).
+
+```bash wrap
+curl -N https://api.ansemchain.fun/api/sse/feed
+```
+
+## Event Types
+
+### `trade`
+
+Fired for every buy, sell, or swap across all tokens.
+
+```
+event: trade
+data: {
+  "token_address": "ansem1cw20contract...",
+  "action": "swap",
+  "direction": "ansem_to_token",
+  "input_amount": "100000000",
+  "output_amount": "1923076923",
+  "price_uchanse": "52000",
+  "trader": "ansem1useraddress...",
+  "tx_hash": "A1B2C3D4...",
+  "time": "2026-02-19T10:05:30.000Z",
+  "ansem_reserves": "5200000000000"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `action` | `"buy"`, `"sell"`, `"swap"`, or `"buy_and_graduate"` |
+| `direction` | `"ansem_to_token"` (buy) or `"token_to_ansem"` (sell) |
+| `input_amount` | Amount sent by the trader (uchanse for buys, micro-tokens for sells) |
+| `output_amount` | Amount received by the trader |
+| `price_uchanse` | Trade price (uchanse per token, scaled by 10^6) |
+| `ansem_reserves` | Updated CHANSE reserves for this token **after** the trade |
+
+### `token_launch`
+
+Fired when a new token is created on the Launchpad.
+
+```
+event: token_launch
+data: {
+  "token_address": "ansem1newtoken...",
+  "creator": "ansem1creatoraddress...",
+  "initial_reserves": "80000000000",
+  "time": "2026-02-19T10:10:00.000Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `token_address` | CW20 contract address of the newly created token |
+| `creator` | Address that paid the creation fee |
+| `initial_reserves` | Starting CHANSE reserves (from the creation fee) in `uchanse` |
+
+### `graduation`
+
+Fired when a bonding curve token graduates to the AMM.
+
+```
+event: graduation
+data: {
+  "token_address": "ansem1graduatedtoken...",
+  "ansem_for_pool": "5000000000000",
+  "tokens_for_pool": "20690000000000",
+  "creator": "ansem1creatoraddress...",
+  "time": "2026-02-19T10:15:00.000Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `ansem_for_pool` | CHANSE transferred to the AMM pool (in `uchanse`) |
+| `tokens_for_pool` | Tokens transferred to the AMM pool (in micro-units) |
+| `creator` | Original token creator |
+
+## JavaScript Client
+
+```javascript wrap
+const eventSource = new EventSource('https://api.ansemchain.fun/api/sse/feed');
+
+eventSource.addEventListener('trade', (event) => {
+  const trade = JSON.parse(event.data);
+  console.log(`${trade.direction} on ${trade.token_address}: ${trade.input_amount} → ${trade.output_amount}`);
+});
+
+eventSource.addEventListener('token_launch', (event) => {
+  const launch = JSON.parse(event.data);
+  console.log(`New token launched: ${launch.token_address} by ${launch.creator}`);
+});
+
+eventSource.addEventListener('graduation', (event) => {
+  const grad = JSON.parse(event.data);
+  console.log(`Token graduated to AMM: ${grad.token_address}`);
+});
+
+eventSource.onerror = () => {
+  console.log('SSE connection lost, reconnecting...');
+  // EventSource auto-reconnects by default
+};
+```
+
+## Connection Details
+
+| Property | Value |
+|----------|-------|
+| Protocol | HTTP/1.1 SSE |
+| Keepalive | Comment sent every 15 seconds |
+| Auto-reconnect | Built into the SSE spec - browsers reconnect automatically |
+| Latency | ~5 seconds from on-chain event to SSE broadcast |
+
+<Note>
+The SSE feed broadcasts **all** events across all tokens. Filter client-side by `token_address` if you only care about specific tokens.
+</Note>

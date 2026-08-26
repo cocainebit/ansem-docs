@@ -1,0 +1,79 @@
+---
+title: 'Chain API Introduction'
+description: 'Standard REST endpoints for querying ansemchain state'
+---
+
+# Chain API
+
+The Chain API provides standard REST endpoints for querying blockchain state - blocks, transactions, accounts, balances, validators, and token metadata.
+
+## Base URL
+
+```
+https://rest.ansemchain.fun
+```
+
+This is the REST interface running on the primary validator node. All endpoints return JSON.
+
+## Authentication
+
+All read endpoints are public. No API key or authentication is required for queries.
+
+Transactions must be signed client-side before broadcasting. See the [SDK docs](/sdk/overview) for signing helpers.
+
+## Rate Limits
+
+| Endpoint Type | Limit |
+|---------------|-------|
+| Read queries | 100 requests/min per IP |
+| Transaction broadcast | 10 requests/min per IP |
+
+For higher throughput, run your own node.
+
+## Common Patterns
+
+### Pagination
+
+Most list endpoints support cursor-based pagination:
+
+```bash wrap
+# First page (10 results)
+curl "https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1...?pagination.limit=10"
+
+# Next page (pass next_key from previous response)
+curl "https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1...?pagination.key=ABC123&pagination.limit=10"
+
+# Include total count
+curl "https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1...?pagination.count_total=true"
+```
+
+### Error Responses
+
+Errors return a standard structure:
+
+```json wrap
+{
+  "code": 5,
+  "message": "rpc error: code = NotFound desc = account ansem1... not found",
+  "details": []
+}
+```
+
+| Code | Meaning |
+|------|---------|
+| 2 | Unknown error |
+| 3 | Invalid argument |
+| 5 | Not found |
+| 11 | Out of range |
+
+## Available Endpoints
+
+| Section | What You Can Query |
+|---------|-------------------|
+| [Blocks](/api/chain/blocks) | Latest block, block by height |
+| [Transactions](/api/chain/transactions) | Tx by hash, search by sender/recipient/height |
+| [Accounts](/api/chain/accounts) | Account info, sequence number, public key |
+| [Balances](/api/chain/balances) | Native token balances, total supply |
+| [Validators](/api/chain/validators) | Validator set, delegations, staking pool |
+| [Network](/api/chain/network) | Node info, syncing status |
+| [Token Metadata](/api/chain/token-metadata) | Denomination metadata for native tokens |

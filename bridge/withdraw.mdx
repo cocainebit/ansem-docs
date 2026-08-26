@@ -1,0 +1,118 @@
+---
+title: 'Withdraw (ansemchain to Solana)'
+description: 'Step-by-step guide to bridging CHANSE, ANSEM, and other assets from ansemchain back to Solana'
+---
+
+# Withdraw: ansemchain to Solana
+
+Withdrawing transfers a bridged asset from ansemchain back to Solana. When you submit the withdrawal, your coins are **escrowed** on ansemchain (not burned immediately). Once the relayer releases the matching SPL from that asset's pool vault on Solana, the escrow is settled and the denom's tracked supply is decremented.
+
+You choose which asset to withdraw:
+
+- **CHANSE** (`uchanse`) releases CHANSE SPL from the CHANSE vault
+- **ANSEM** (`uansem`) releases ANSEM SPL from the ANSEM vault
+
+Each asset has its own vault and its own limits.
+
+## Prerequisites
+
+- An ansemchain wallet (Keplr, Leap, or Ansem Wallet) holding the bridged asset you want to withdraw
+- Your Solana wallet address (where you want to receive the SPL)
+- A small amount of CHANSE for chain gas fees (~0.01 CHANSE) -- CHANSE is always the gas token on ansemchain, regardless of which asset you are withdrawing
+
+<Warning>
+Only bridge-minted balances can be withdrawn. Native staking rewards earned on ansemchain cannot cross back to Solana.
+</Warning>
+
+## Withdrawal amounts and admin approval
+
+Each asset has an `admin_approval_threshold`. Withdrawals **at or below** the threshold are processed automatically. Withdrawals **above** the threshold are placed in `pending_approval` and require an admin `ApproveBurn` before the relayer releases funds on Solana. This is a safety control on unusually large withdrawals, not a fee or a rejection -- once approved, the withdrawal completes normally.
+
+A withdrawal also cannot exceed the asset's `max_burn_per_tx`. See [Fees & Limits](/bridge/fees-and-limits) for the per-asset values.
+
+## Step-by-Step Guide
+
+<Steps>
+
+### Connect your ansemchain wallet
+
+Click **Connect Ansem Wallet** and select from Keplr, Leap, or Ansem Wallet. Your balances appear once connected.
+
+### Choose the asset
+
+Select **CHANSE** or **ANSEM**. The UI shows your balance for that asset, its `max_burn_per_tx`, and the `admin_approval_threshold` above which an admin approval is needed.
+
+### Enter your Solana destination address
+
+Paste the Solana wallet address where you want to receive the SPL. This is a standard Solana address (32-44 characters, Base58 encoded).
+
+<Note>
+You do not need to connect a Solana wallet for withdrawals -- just paste the address. The relayer handles the Solana-side transfer.
+</Note>
+
+### Enter the withdrawal amount
+
+Type the amount you want to bridge back. The UI shows your available balance and warns you if the amount crosses the approval threshold.
+
+Click **Max** to fill your full balance minus a small CHANSE gas buffer.
+
+### Confirm the withdrawal transaction
+
+Click **Withdraw** and approve the transaction in your ansemchain wallet. This submits `MsgBurnForBridgeOut`, which **escrows** your coins (they leave your spendable balance but are not burned yet). The UI will show:
+
+1. **Approving Transaction...** -- Waiting for your wallet signature
+2. **Broadcasting on ansemchain...** -- Submitting the escrow to the network
+
+### Track your withdrawal
+
+The **Withdraw Status Tracker** appears with your ansemchain transaction hash. If your amount was above the threshold, it shows **Pending admin approval** until an admin calls `ApproveBurn`. Otherwise the relayer proceeds directly.
+
+</Steps>
+
+## Processing Time
+
+| Step | Duration |
+|------|----------|
+| ansemchain block confirmation | ~6 seconds |
+| Admin approval (only if above threshold) | varies |
+| Relayer detection | ~5-10 seconds |
+| Solana withdrawal execution | ~5 seconds |
+| **Total (auto-approved)** | **~20-30 seconds** |
+
+## What Happens Under the Hood
+
+```
+1. You sign MsgBurnForBridgeOut on ansemchain (for uchanse or uansem)
+2. The module ESCROWS the coins (does not burn yet) and assigns a unique burn_id
+3. If amount > admin_approval_threshold → status = pending_approval
+   An admin ApproveBurn is required before continuing
+4. The relayer calls the Solana program's `withdraw` for that mint, releasing
+   SPL from the matching pool_vault to your Solana token account
+   (a ProcessedBurn PDA seeded on burn_id guards against double release)
+5. The relayer submits MsgUpdateBurnStatus:
+     completed → the escrow is burned and that denom's BridgeMintedSupply decremented
+     failed    → the escrowed coins are refunded to you
+```
+
+## Limits
+
+Withdrawals are subject to governance-controlled, per-asset limits:
+
+| Limit | Scope |
+|-------|-------|
+| `max_burn_per_tx` | Per asset -- largest amount in one withdrawal |
+| `admin_approval_threshold` | Per asset -- above this, an admin must approve |
+| `max_burns_per_block` | Module-wide -- caps withdrawals per block |
+
+See [Fees & Limits](/bridge/fees-and-limits) for current values. For amounts above `max_burn_per_tx`, split into multiple transactions.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deposit" icon="arrow-down" href="/bridge/deposit">
+    Bridge an asset from Solana to ansemchain
+  </Card>
+  <Card title="FAQ" icon="circle-question" href="/bridge/faq">
+    Common questions about bridging
+  </Card>
+</CardGroup>

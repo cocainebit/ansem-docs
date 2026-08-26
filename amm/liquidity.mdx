@@ -1,0 +1,131 @@
+---
+title: 'Liquidity'
+description: 'Understanding LP tokens, pool reserves, and liquidity on the CHANSE AMM'
+---
+
+# Liquidity
+
+Liquidity in the CHANSE AMM comes from the tokens and CHANSE deposited into each pool. When a token graduates from the launchpad, its bonding curve reserves automatically become the initial liquidity in the AMM pool.
+
+## How Liquidity Is Created
+
+Unlike traditional AMMs where users deposit liquidity manually, CHANSE AMM pools are seeded automatically during [graduation](/launchpad/graduation):
+
+1. Token reaches its target market cap on its launchpad bonding curve
+2. All CHANSE reserves move to a new AMM pool as the CHANSE side
+3. All unsold tokens move to the pool as the token side
+4. An LP token contract is created to track the pool shares
+
+This ensures every graduated token starts with deep liquidity from day one.
+
+## LP Tokens
+
+Each AMM pool has an associated **LP (Liquidity Provider) token** -- a CW20 token that represents a proportional share of the pool's reserves.
+
+| Property | Details |
+|----------|---------|
+| Standard | CW20 |
+| Represents | Proportional share of both CHANSE and token reserves |
+| Value growth | Increases as swap fees accumulate in the pool |
+
+### How LP Value Grows
+
+Every swap charges a fee (1% base + optional augmented fee). These fees stay in the pool, increasing both reserves. Since LP tokens represent a share of the pool, their backing value increases with every trade.
+
+```
+Pool at creation:      the raised CHANSE + 20,690 reserved tokens
+After trading volume:  reserves grow as fees accumulate
+```
+
+LP holders earn proportionally from all trading activity without taking any action.
+
+## Pool Mechanics
+
+The AMM uses the **constant product formula**:
+
+```
+ansem_reserve * token_reserve = k
+```
+
+When someone swaps CHANSE for tokens:
+- `ansem_reserve` increases (CHANSE added to pool)
+- `token_reserve` decreases (tokens removed from pool)
+- `k` increases slightly (fees stay in the pool)
+
+When someone swaps tokens for CHANSE:
+- `token_reserve` increases
+- `ansem_reserve` decreases
+- `k` increases slightly
+
+## Querying Pool State
+
+Check any pool's current reserves and price:
+
+```json wrap
+{ "pool": { "token_address": "<cw20_token_address>" } }
+```
+
+```typescript wrap
+{
+  token_address: string;
+  ansem_reserve: string;      // CHANSE in the pool (uchanse)
+  token_reserve: string;    // Tokens in the pool
+  lp_token_address: string; // LP token contract address
+  lp_total_supply: string;  // Total LP tokens minted
+  price: string;            // Current price (CHANSE per token)
+}
+```
+
+## Impermanent Loss
+
+<Accordion title="What is impermanent loss?">
+Impermanent loss occurs when the price of tokens in a pool changes relative to when liquidity was provided. If you hold LP tokens and the price moves significantly in either direction, you may have less total value than if you had simply held the assets outside the pool.
+
+However, trading fees earned by the pool can offset impermanent loss. Pools with high trading volume relative to their size tend to earn enough fees to more than compensate.
+
+For CHANSE AMM pools, initial liquidity comes from the graduation process rather than individual LPs, so impermanent loss primarily affects anyone who acquires LP tokens on the secondary market.
+</Accordion>
+
+## Augmented Fee
+
+Newly graduated pools may have a temporary **augmented fee** (up to 5%) on top of the base 1% swap fee. This extra fee:
+
+- Accelerates LP value growth during the initial trading period
+- Auto-disables once the pool reaches a target total value
+- Ensures fair price discovery for newly graduated tokens
+
+Check the augmented fee status:
+
+```json wrap
+{ "augmented_fee_status": { "token_address": "<cw20_token_address>" } }
+```
+
+```typescript wrap
+{
+  active: boolean;                  // Whether the augmented fee is active
+  augmented_fee_bps: number;        // Extra fee in basis points
+  lp_target_uchanse: string;           // Pool value target
+  current_pool_value_uchanse: string;  // Current pool value (2 * ansem_reserve)
+  progress_percent: string;         // Progress toward target (e.g. "75.50")
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Swapping" icon="repeat" href="/amm/swapping">
+    Trade tokens on the AMM
+  </Card>
+  <Card title="Launchpad" icon="rocket" href="/launchpad/overview">
+    Where AMM liquidity originates
+  </Card>
+</CardGroup>
+
+## Locked seed vs open liquidity
+
+Every graduated pool contains two kinds of liquidity:
+
+- **The graduation seed** (raised CHANSE + 20.69% of supply) is locked forever and can never be withdrawn by anyone. It is the permanent price floor.
+- **Open liquidity** added afterwards belongs to whoever added it and can be withdrawn at any time with the standard remove-liquidity flow.
+
+LP accounting is tracked inside the AMM contract per pool and per holder; there is no separate LP token to manage.

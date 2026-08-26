@@ -1,0 +1,105 @@
+---
+title: 'Searching the Explorer'
+description: 'Search by transaction hash, address, block height, or contract'
+---
+
+# Searching the Explorer
+
+The ansemchain Explorer supports searching by several identifiers. Each search type takes you to the appropriate detail page.
+
+## Search by Transaction Hash
+
+Find any transaction using its hash (64 hexadecimal characters):
+
+```
+Example: A1B2C3D4E5F6...  (64 hex characters)
+```
+
+The transaction page shows:
+
+| Field | Description |
+|-------|-------------|
+| TX Hash | The unique transaction identifier |
+| Status | Success or failed (with error message) |
+| Block Height | Which block included this transaction (linked) |
+| Gas Used / Wanted | Gas consumed vs. gas limit |
+| Fee | Transaction fee paid |
+| Messages | All messages in the transaction with decoded parameters |
+
+<Tip>
+You can copy a TX hash from your wallet's transaction history or from the bridge status tracker after a deposit or withdrawal.
+</Tip>
+
+## Search by Address
+
+Look up any ansemchain address (starts with `ansem1`) to view:
+
+- **Balances** -- Native CHANSE and ANSEM, plus all CW20 token holdings
+- **Delegations** -- Staking positions with each validator
+- **Rewards** -- Unclaimed staking rewards
+- **Unbonding** -- Active unbonding with countdown timers
+- **Transaction History** -- All sent and received transactions
+- **Bridge Data** -- Burn records for bridge users
+
+### Validator Addresses
+
+Validator addresses start with `ansemvaloper1` and show:
+
+- Validator details (moniker, commission, description)
+- Voting power and delegator count
+- Performance metrics
+
+## Search by Block Height
+
+Enter a block number to view:
+
+- Block timestamp and proposer
+- All transactions in that block
+- Gas usage summary
+
+### Future Block Estimation
+
+The explorer can estimate when a future block will be produced. Enter a block height that hasn't occurred yet to see a countdown based on the average block time (~6 seconds).
+
+## Search by Contract Address
+
+Enter a CosmWasm contract address to view:
+
+- Contract label and code ID
+- Creator address
+- Transaction history involving this contract
+- Other contracts deployed from the same code ID
+
+You can also browse all contracts by navigating to the **Smart Contracts** section and searching by:
+
+- **Contract address** -- Finds a specific contract
+- **Creator address** -- Shows all contracts deployed by that address
+
+## Search by Code ID
+
+In the Smart Contracts section, browse by code ID to see:
+
+- Upload hash and creator
+- Instantiation permissions
+- All contracts deployed from this code
+
+## Quick Navigation
+
+| You Have | Where to Go |
+|----------|-------------|
+| TX hash | Transactions tab, paste in search |
+| `ansem1...` address | Accounts section, paste address |
+| `ansemvaloper1...` address | Staking section, find validator |
+| Block number | Blocks section, enter height |
+| Contract address | Smart Contracts section, search by address |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Explorer Overview" icon="compass" href="/explorer/overview">
+    Full feature overview of the explorer
+  </Card>
+  <Card title="Bridge" icon="bridge" href="/bridge/overview">
+    Track bridge deposits and withdrawals
+  </Card>
+</CardGroup>

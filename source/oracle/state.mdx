@@ -1,0 +1,44 @@
+---
+title: 'state.rs'
+description: 'Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract''s state between calls.'
+---
+
+Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract's state between calls.
+
+<Info>Live source from `contracts/oracle/src/state.rs` (34 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Addr;
+use cw_storage_plus::Item;
+
+#[cw_serde]
+pub struct Config {
+    /// Admin (set to instantiator at instantiate time). Can rotate the relayer + max_age.
+    pub admin: Addr,
+    /// Address authorized to post UpdatePrice.
+    pub relayer_address: Addr,
+    /// Max age of a price reading before it's considered stale (seconds).
+    pub max_age_seconds: u64,
+    /// How many history entries to keep for TWAP. At 5s polling, 60 entries = 5min window.
+    pub history_size: u32,
+}
+
+#[cw_serde]
+pub struct PricePoint {
+    pub ansem_usd_price: u128,
+    pub sol_usd_price: u128,
+    pub source: String,
+    pub height: u64,
+    pub timestamp: u64,
+}
+
+/// Singleton config.
+pub const CONFIG: Item<Config> = Item::new("config");
+
+/// Latest price reading. `None` means no updates yet.
+pub const LATEST: Item<PricePoint> = Item::new("latest");
+
+/// Ring-buffer history for TWAP. Stored as a Vec<PricePoint>; trimmed on each insert.
+pub const HISTORY: Item<Vec<PricePoint>> = Item::new("history");
+```

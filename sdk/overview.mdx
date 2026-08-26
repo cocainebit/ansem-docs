@@ -1,0 +1,130 @@
+---
+title: 'SDK Overview'
+description: 'Build dApps on ansemchain with the TypeScript SDK'
+---
+
+# @ansem-chain/sdk
+
+The ansemchain SDK is a TypeScript library for building decentralized applications on ansemchain. It wraps CosmJS with CHANSE-specific helpers for wallet connection, token operations, and contract interaction.
+
+## Installation
+
+```bash wrap
+npm install @ansem-chain/sdk
+```
+
+## Quick Start
+
+### Read-Only Client
+
+Connect to ansemchain and query data without a wallet:
+
+```typescript wrap
+import { createClient, getBalance, formatAnsem } from "@ansem-chain/sdk";
+
+const client = await createClient({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+});
+
+// Get chain info
+const chainId = await client.getChainId();  // "ansem-1"
+const height = await client.getHeight();
+
+// Query balance
+const balance = await getBalance(client, "ansem1...");
+console.log(formatAnsem(balance.amount), "CHANSE");  // "1,000.50 CHANSE"
+```
+
+### Browser with Wallet
+
+Connect a user's wallet and send transactions:
+
+```typescript wrap
+import { showWalletModal, sendAnsem } from "@ansem-chain/sdk";
+
+// Show wallet selection (Keplr, Leap, Ansem Wallet)
+const wallet = await showWalletModal({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+});
+
+if (wallet) {
+  console.log("Connected:", wallet.address);
+  // wallet.signer is ready for signing transactions
+}
+```
+
+### Node.js with Mnemonic
+
+For scripts, bots, and backend services:
+
+```typescript wrap
+import { createSigningClient, sendAnsem } from "@ansem-chain/sdk";
+
+const client = await createSigningClient(
+  { rpcEndpoint: "https://rpc.ansemchain.fun" },
+  "your mnemonic phrase here"
+);
+
+const result = await sendAnsem(client, "ansem1...recipient", "1000000");
+console.log("TX:", result.transactionHash);
+```
+
+## Key Modules
+
+| Module | Description |
+|--------|-------------|
+| **Client** | `createClient()` for read-only, `createSigningClient()` for signing |
+| **Queries** | Balance, token info, contract queries |
+| **Transactions** | Send tokens, execute contracts |
+| **Wallet** | Keplr, Leap, Ansem Wallet integration + modal |
+| **Contracts** | Generic + CW20-specific contract operations |
+| **Types** | Coin formatting, chain config, transaction types |
+
+## Configuration
+
+```typescript wrap
+import { createClient } from "@ansem-chain/sdk";
+
+const client = await createClient({
+  rpcEndpoint: "https://rpc.ansemchain.fun",  // Required
+  restEndpoint: "https://rest.ansemchain.fun",   // Optional (REST/LCD)
+  chainId: "ansem-1",                              // Default: "ansem-1"
+  prefix: "ansem",                                 // Default: "ansem"
+});
+```
+
+## Token Denominations
+
+CHANSE uses 6 decimals. The SDK provides helpers for conversion:
+
+```typescript wrap
+import { formatAnsem, parseAnsem, ANSEM_DECIMALS, ANSEM_DENOM } from "@ansem-chain/sdk";
+
+formatAnsem("1000000");    // "1"          (uchanse → CHANSE)
+parseAnsem("1");           // "1000000"    (CHANSE → uchanse)
+
+ANSEM_DECIMALS;  // 6
+ANSEM_DENOM;     // "uchanse"
+```
+
+## Requirements
+
+| Environment | Requirements |
+|-------------|-------------|
+| Browser | Keplr, Leap, or Ansem Wallet extension for wallet features |
+| Node.js | Node.js 18+ |
+| Both | Access to an ansemchain RPC node |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Queries" icon="magnifying-glass" href="/sdk/queries">
+    Read balances, token info, and contract state
+  </Card>
+  <Card title="Transactions" icon="paper-plane" href="/sdk/transactions">
+    Send tokens and execute contracts
+  </Card>
+  <Card title="Wallets" icon="wallet" href="/sdk/wallets">
+    Connect Keplr, Leap, or Ansem Wallet
+  </Card>
+</CardGroup>

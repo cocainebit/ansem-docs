@@ -1,0 +1,53 @@
+---
+title: 'Smart Contract Source'
+description: 'Browse the full source of every CHANSE contract, with explanations of what each one does.'
+---
+
+Everything that runs CHANSE on-chain is open. This section is the actual source of every deployed contract, file by file, with a plain-English overview of each so you can see exactly what happens when you launch a token, swap, bridge, or vote.
+
+<Info>
+These pages are generated directly from the contract source in `contracts/` by `gen-source-docs.py` and regenerated whenever a contract changes, so what you read here is what is deployed, not a summary that can drift.
+</Info>
+
+<Note>
+This browser currently covers seven of the nine on-chain contracts. Two more - **certificate** (bearer deeds / sealed balances) and **multiplier** (the share multiplier used for splits and dividends) - are deployed but not yet included here. Regenerate with `gen-source-docs.py` against `~/ansemchain/contracts` to add them.
+</Note>
+
+## The contracts
+
+<CardGroup cols={2}>
+  <Card title="Launchpad" icon="rocket" href="/source/launchpad/overview">
+    Permissionless token launches on a bonding curve that graduates to the AMM.
+  </Card>
+  <Card title="AMM" icon="arrows-rotate" href="/source/amm/overview">
+    Constant-product pools, swaps, and liquidity for graduated tokens.
+  </Card>
+  <Card title="Oracle" icon="chart-line" href="/source/oracle/overview">
+    The on-chain CHANSE/USD price feed.
+  </Card>
+  <Card title="Config Registry" icon="map-pin" href="/source/config/overview">
+    The single on-chain pointer every app resolves addresses from.
+  </Card>
+  <Card title="Vesting" icon="lock" href="/source/vesting/overview">
+    Time-locked token release schedules.
+  </Card>
+  <Card title="Name Service" icon="at" href="/source/names/overview">
+    The `.ansem` name registry.
+  </Card>
+  <Card title="Proposals" icon="check-to-slot" href="/source/proposals/overview">
+    On-chain community proposals and multi-option voting.
+  </Card>
+</CardGroup>
+
+## How to read a contract
+
+Each contract follows the standard CosmWasm layout, so once you know the four files you can read any of them:
+
+| File | What it is |
+|------|------------|
+| `msg.rs` | The **interface**: every message you can send and every response you get back. Start here. |
+| `state.rs` | The **storage**: the structs and keys that persist between calls. |
+| `contract.rs` | The **logic**: the `instantiate` / `execute` / `query` entry points and their handlers. |
+| `error.rs` | The typed **errors** and what triggers them. |
+
+CW20 (the fungible-token standard the launchpad mints) is the audited `cw20-base` library, not custom code, so it is not reproduced here.

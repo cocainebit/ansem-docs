@@ -1,0 +1,89 @@
+---
+title: 'Token Detail'
+description: 'Get full details for a single token by contract address'
+---
+
+# Token Detail
+
+Retrieve detailed information for a single token, including its current price, reserves, and 24-hour trading statistics.
+
+## Endpoint
+
+```
+GET /api/tokens/:address
+```
+
+## Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `address` | string | CW20 contract address of the token (e.g., `ansem1cw20contract...`) |
+
+## Request
+
+```bash wrap
+curl https://api.ansemchain.fun/api/tokens/ansem1cw20contractaddress...
+```
+
+## Response
+
+```json wrap
+{
+  "address": "ansem1cw20contractaddress...",
+  "name": "Example Token",
+  "symbol": "EXT",
+  "image": "https://...",
+  "description": "An example token launched on CHANSE",
+  "creator": "ansem1creatoraddress...",
+  "source": "launchpad",
+  "graduated": true,
+  "ansem_reserves": "5200000000000",
+  "current_price": "52000",
+  "volume_24h": "1500000000000",
+  "trade_count_24h": 342,
+  "created_at": "2026-02-10T08:00:00.000Z",
+  "first_seen_at": "2026-02-10T08:00:15.000Z"
+}
+```
+
+See [List Tokens](/api/launchpad/list-tokens) for a full description of each field.
+
+## Errors
+
+| Status | Condition |
+|--------|-----------|
+| `404` | Token not found - either the address is wrong or the token hasn't been indexed yet |
+| `500` | Internal server error |
+
+### 404 Response
+
+```json wrap
+{
+  "error": "Token not found"
+}
+```
+
+<Note>
+Tokens appear in the index within ~5 seconds of their first on-chain trade or creation event. If you've just created a token and get a 404, wait a few seconds and retry.
+</Note>
+
+## Using Token Detail for Trading UI
+
+A typical trading UI needs to display:
+
+1. **Token identity** - `name`, `symbol`, `image`
+2. **Current price** - `current_price` (divide by 10^6 for human-readable)
+3. **Graduation status** - `graduated` determines whether to route trades to the Launchpad (bonding curve) or AMM
+4. **Liquidity depth** - `ansem_reserves` indicates how much CHANSE is backing this token
+5. **Activity** - `volume_24h` and `trade_count_24h` show how actively it's being traded
+
+### Example: Display Price in CHANSE
+
+```typescript wrap
+const token = await fetch('https://api.ansemchain.fun/api/tokens/ansem1...')
+  .then(r => r.json());
+
+const priceInAnsem = Number(token.current_price) / 1e6;
+console.log(`${token.symbol}: ${priceInAnsem} CHANSE`);
+// "EXT: 0.052 CHANSE"
+```

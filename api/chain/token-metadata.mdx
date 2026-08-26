@@ -1,0 +1,105 @@
+---
+title: 'Token Metadata'
+description: 'Query denomination metadata for native tokens'
+---
+
+# Token Metadata
+
+Query metadata for native token denominations registered on ansemchain. This covers the base `uchanse` denomination and any other registered denoms.
+
+## List All Denominations
+
+Returns metadata for all registered denominations.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/denoms_metadata
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "metadatas": [
+    {
+      "description": "The native staking token of ansemchain",
+      "denom_units": [
+        {
+          "denom": "uchanse",
+          "exponent": 0,
+          "aliases": ["micro-ansem"]
+        },
+        {
+          "denom": "CHANSE",
+          "exponent": 6,
+          "aliases": []
+        }
+      ],
+      "base": "uchanse",
+      "display": "CHANSE",
+      "name": "CHANSE",
+      "symbol": "CHANSE"
+    }
+  ],
+  "pagination": {
+    "next_key": null,
+    "total": "1"
+  }
+}
+```
+</Accordion>
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `base` | The smallest denomination stored on-chain (`uchanse`) |
+| `display` | The human-readable denomination (`CHANSE`) |
+| `denom_units` | Conversion table between denominations |
+| `denom_units[].exponent` | Power of 10 for conversion. `uchanse` (exponent 0) → `CHANSE` (exponent 6) means 1 CHANSE = 10^6 uchanse |
+
+## Get Specific Denomination
+
+Query metadata for a single denomination.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/denoms_metadata/uchanse
+```
+
+Returns the same structure as above for the specified denom.
+
+## CW20 Token Metadata
+
+CW20 tokens (created via the Launchpad or custom contracts) are **not** native denominations - they live inside CosmWasm contracts. To query their metadata, use the smart contract query endpoint:
+
+```bash wrap
+# Base64 encode the query
+QUERY=$(echo -n '{"token_info":{}}' | base64)
+
+curl "https://rest.ansemchain.fun/cosmwasm/wasm/v1/contract/ansem1tokencontract.../smart/$QUERY"
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "data": {
+    "name": "Example Token",
+    "symbol": "EXT",
+    "decimals": 6,
+    "total_supply": "100000000000000"
+  }
+}
+```
+</Accordion>
+
+### CW20 vs Native Tokens
+
+| Property | Native (`uchanse`) | CW20 Tokens |
+|----------|----------------|-------------|
+| Storage | Bank module state | CosmWasm contract state |
+| Query | `/cosmos/bank/v1beta1/...` | `/cosmwasm/wasm/v1/contract/.../smart/...` |
+| Transfer | `MsgSend` | CW20 `Transfer` execute message |
+| Standard | Chain native | CosmWasm CW20 standard |
+| Created by | Genesis / Bridge module | Launchpad contract or manual deploy |
+
+<Note>
+For querying CW20 token data in bulk (all launchpad tokens, prices, volumes), use the [Launchpad API](/api/launchpad/introduction) instead. It provides pre-indexed data that's much faster than querying individual contracts.
+</Note>

@@ -1,0 +1,25 @@
+---
+title: 'Name Service'
+description: 'The .ansem name registry.'
+---
+
+The name service maps human-readable `.ansem` names to addresses, so people can send to `alice.ansem` instead of a long `ansem1...` string.
+
+## What it does
+
+- **Register** a name (`RegisterName`) by attaching at least the CHANSE equivalent of its price tier. Pricing is **length-tiered**, shorter names cost more:
+
+  | Length | Tier |
+  |---|---|
+  | 3 chars | `price_3` |
+  | 4 chars | `price_4` |
+  | 5-8 chars | `price_5_8` |
+  | 9+ chars | `price_9_plus` |
+
+  Overpayment is refunded, so you can always attach a safe margin.
+- The presentation TLD (e.g. `.ansem`) and the price tiers are configurable.
+- Names resolve to an address via query and can be looked up in reverse.
+
+## Interface
+
+Registration, resolution, and admin/pricing messages are in `msg.rs`.

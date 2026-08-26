@@ -1,0 +1,147 @@
+---
+title: 'Queries'
+description: 'Read balances, token info, and smart contract state with the SDK'
+---
+
+# Queries
+
+All read operations use the `AnsemClient` returned by `createClient()`. No wallet connection is needed for queries.
+
+## Setup
+
+```typescript wrap
+import { createClient } from "@ansem-chain/sdk";
+
+const client = await createClient({
+  rpcEndpoint: "https://rpc.ansemchain.fun",
+});
+```
+
+## Native Balance
+
+```typescript wrap
+import { getBalance, getAllBalances, formatAnsem } from "@ansem-chain/sdk";
+
+// Get CHANSE balance
+const balance = await getBalance(client, "ansem1...");
+console.log(balance.denom);              // "uchanse"
+console.log(balance.amount);             // "1500000000" (raw)
+console.log(formatAnsem(balance.amount));  // "1500" (human-readable)
+
+// Get all token balances
+const allBalances = await getAllBalances(client, "ansem1...");
+for (const coin of allBalances) {
+  console.log(coin.denom, coin.amount);
+}
+```
+
+## CW20 Token Balance
+
+```typescript wrap
+import { getTokenBalance } from "@ansem-chain/sdk";
+
+const balance = await getTokenBalance(
+  client,
+  "ansem1...contract",  // CW20 token contract address
+  "ansem1...owner"       // Wallet address to check
+);
+console.log(balance);  // "5000000" (in micro-units)
+```
+
+## CW20 Token Info
+
+```typescript wrap
+import { getTokenInfo, getFormattedTokenInfo } from "@ansem-chain/sdk";
+
+// Raw token info
+const info = await getTokenInfo(client, "ansem1...contract");
+console.log(info.name);          // "My Token"
+console.log(info.symbol);        // "MTK"
+console.log(info.decimals);      // 6
+console.log(info.total_supply);  // "100000000000000"
+
+// Formatted with human-readable values
+const formatted = await getFormattedTokenInfo(client, "ansem1...contract");
+console.log(formatted);  // includes human-readable supply, etc.
+```
+
+## Token Marketing Info
+
+```typescript wrap
+import { getTokenMarketingInfo } from "@ansem-chain/sdk";
+
+const marketing = await getTokenMarketingInfo(client, "ansem1...contract");
+if (marketing) {
+  console.log(marketing.project);      // Project name
+  console.log(marketing.description);  // Token description
+  console.log(marketing.logo);         // Logo URL or embedded data
+}
+```
+
+## Generic Contract Queries
+
+Query any CosmWasm contract with arbitrary messages:
+
+```typescript wrap
+import { queryContract } from "@ansem-chain/sdk";
+
+// Query a launchpad contract
+const curve = await queryContract(client, launchpadAddress, {
+  curve: { token_address: "ansem1...token" },
+});
+console.log(curve.current_price);
+console.log(curve.tokens_sold);
+
+// Query an AMM contract
+const pool = await queryContract(client, ammAddress, {
+  pool: { token_address: "ansem1...token" },
+});
+console.log(pool.ansem_reserve);
+console.log(pool.price);
+```
+
+## Contract Info
+
+```typescript wrap
+import { getContractInfo } from "@ansem-chain/sdk";
+
+const info = await getContractInfo(client, "ansem1...contract");
+console.log(info.codeId);    // Code ID the contract was instantiated from
+console.log(info.creator);   // Address that deployed the contract
+console.log(info.admin);     // Admin address (if set)
+console.log(info.label);     // Human-readable label
+```
+
+## Chain Info
+
+```typescript wrap
+// These methods are on the client directly
+const chainId = await client.getChainId();  // "ansem-1"
+const height = await client.getHeight();    // Current block height
+```
+
+## CW20 Allowance
+
+```typescript wrap
+import { getCW20Allowance } from "@ansem-chain/sdk";
+
+const allowance = await getCW20Allowance(
+  client,
+  "ansem1...token",    // CW20 contract
+  "ansem1...owner",    // Token owner
+  "ansem1...spender"   // Authorized spender
+);
+console.log(allowance.allowance);  // "1000000"
+console.log(allowance.expires);    // Expiration info
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Transactions" icon="paper-plane" href="/sdk/transactions">
+    Send tokens and execute contracts
+  </Card>
+  <Card title="Wallets" icon="wallet" href="/sdk/wallets">
+    Connect Keplr, Leap, or Ansem Wallet
+  </Card>
+</CardGroup>

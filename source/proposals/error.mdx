@@ -1,0 +1,70 @@
+---
+title: 'error.rs'
+description: 'The typed errors this contract can return, and the conditions that trigger them.'
+---
+
+The typed errors this contract can return, and the conditions that trigger them.
+
+<Info>Live source from `contracts/proposals/src/error.rs` (60 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] StdError),
+
+    #[error("Unauthorized")]
+    Unauthorized {},
+
+    #[error("Proposal not found: {id}")]
+    ProposalNotFound { id: u64 },
+
+    #[error("Proposal is not active")]
+    ProposalNotActive {},
+
+    #[error("Already voted on proposal {id}")]
+    AlreadyVoted { id: u64 },
+
+    #[error("Voter holds no tokens for {token_address}")]
+    NoTokenBalance { token_address: String },
+
+    #[error("Handle @{handle} is already tracked")]
+    HandleAlreadyTracked { handle: String },
+
+    #[error("Token {token_address} already has an active rename proposal")]
+    ActiveRenameExists { token_address: String },
+
+    #[error("Invalid twitter handle: {handle}")]
+    InvalidHandle { handle: String },
+
+    #[error("Invalid token address")]
+    InvalidTokenAddress {},
+
+    #[error("Name cannot be empty")]
+    EmptyName {},
+
+    #[error("Symbol cannot be empty")]
+    EmptySymbol {},
+
+    #[error("Rename proposal has not reached required approval")]
+    RenameNotApproved {},
+
+    #[error("Handle not found in tracked list")]
+    HandleNotTracked {},
+
+    #[error("Insufficient CHANSE balance: required {required}, have {balance}")]
+    InsufficientAnsemBalance { required: u64, balance: u64 },
+
+    #[error("Voting window is still open")]
+    VotingWindowOpen {},
+
+    #[error("Title too long (max 100 chars)")]
+    TitleTooLong {},
+
+    #[error("Description too long (max 500 chars)")]
+    DescriptionTooLong {},
+}
+```

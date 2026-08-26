@@ -1,0 +1,93 @@
+---
+title: 'state.rs'
+description: 'Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract''s state between calls.'
+---
+
+Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract's state between calls.
+
+<Info>Live source from `contracts/amm/src/state.rs` (83 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Addr;
+use cw_storage_plus::{Item, Map};
+
+/// Global AMM configuration
+#[cw_serde]
+pub struct Config {
+    /// Addresses authorized to create pools (bonding curve + tokenlaunch module)
+    pub authorized_creators: Vec<Addr>,
+    /// Swap fee in basis points (100 = 1%)
+    pub swap_fee_bps: u16,
+    /// Max wallet holding in basis points of token total supply (300 = 3%). 0 = disabled.
+    #[serde(default = "default_max_wallet_bps")]
+    pub max_wallet_bps: u16,
+}
+
+fn default_max_wallet_bps() -> u16 {
+    300
+}
+
+/// Augmented fee configuration for a pool
+#[cw_serde]
+pub struct AugmentedFeeConfig {
+    /// Extra fee in basis points (e.g., 100 = 1%)
+    pub augmented_fee_bps: u16,
+    /// Target pool value in uchanse (ansem_reserve * 2) to auto-disable augmented fees
+    pub lp_target_uchanse: u128,
+    /// Whether augmented fees are currently active
+    pub active: bool,
+}
+
+/// Individual liquidity pool
+#[cw_serde]
+pub struct Pool {
+    /// CW20 token address (always paired with native CHANSE)
+    pub token_address: Addr,
+    /// CHANSE reserves in the pool
+    pub ansem_reserve: u128,
+    /// Token reserves in the pool
+    pub token_reserve: u128,
+    /// LP token contract address (legacy field — set to AMM contract address; LP tokens are not separate CW20)
+    pub lp_token_address: Addr,
+    /// Total LP shares (= locked_lp_supply + sum of all OPEN_LP balances).
+    /// Each share's claim on reserves = pool.ansem_reserve * shares / lp_total_supply.
+    pub lp_total_supply: u128,
+    /// Locked LP shares from the initial pool seed (e.g. launchpad graduation).
+    /// While locked, these shares are not assigned to any address and cannot
+    /// be touched by AddLiquidity / RemoveLiquidity. They provide the
+    /// rug-pull guarantee for the duration of the lock.
+    ///
+    /// Lifecycle:
+    ///   - If `locked_lp_unlock_at` is None, the lock is permanent and these
+    ///     shares are never withdrawable.
+    ///   - If `locked_lp_unlock_at` is Some(t) and `env.block.time.seconds() >= t`,
+    ///     `locked_lp_recipient` may call `WithdrawLockedLp` to redeem this
+    ///     entire slice, which zeroes `locked_lp_supply` and decrements
+    ///     `lp_total_supply` by the same amount.
+    #[serde(default)]
+    pub locked_lp_supply: u128,
+    /// v3: Unix timestamp (seconds) at which the locked LP slice becomes
+    /// withdrawable by `locked_lp_recipient`. `None` means locked forever
+    /// (default for pools created before v3). Existing pools deserialize
+    /// with `None` via `#[serde(default)]`.
+    #[serde(default)]
+    pub locked_lp_unlock_at: Option<u64>,
+    /// v3: Address allowed to call `WithdrawLockedLp` once the lock has
+    /// elapsed. Set at pool creation; cannot be changed afterwards (the
+    /// pool creator commits to a single recipient up-front). `None`
+    /// only if `locked_lp_unlock_at` is also None.
+    #[serde(default)]
+    pub locked_lp_recipient: Option<Addr>,
+    /// Optional augmented fee configuration
+    pub augmented_fee: Option<AugmentedFeeConfig>,
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
+/// Map from CW20 token address to Pool
+pub const POOLS: Map<&Addr, Pool> = Map::new("pools");
+/// Open LP balances per pool: (token_address, holder) -> share amount.
+/// These are the additional LP shares that depositors hold and can withdraw.
+/// The initial locked seed is *not* tracked here — it lives in `Pool.locked_lp_supply`.
+pub const OPEN_LP: Map<(&Addr, &Addr), u128> = Map::new("open_lp");
+```

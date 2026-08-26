@@ -1,0 +1,184 @@
+---
+title: 'Bridge Architecture'
+description: 'Technical deep-dive into the multi-asset Ansem Bridge system design'
+---
+
+# Bridge Architecture
+
+The Ansem Bridge uses a **multi-asset Pool Bridge** architecture with three main components: a custom Anchor program on Solana (`ansem-bridge`), the `x/bridge` module on ansemchain, and a relayer service connecting them. A single bridge moves several assets, each with its own pool vault on Solana and its own native denom on ansemchain.
+
+## System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         SOLANA                                   │
+│                                                                  │
+│   ansem-bridge program (Anchor)                                  │
+│   ├── BridgePool  per mint   [b"bridge_pool", mint]             │
+│   │     └── pool_vault pubkey at byte offset 716 (load-bearing) │
+│   ├── pool_vault per mint    [b"pool_vault", mint, generation]  │
+│   │     ├── vault[CHANSE mint]  holds deposited CHANSE            │
+│   │     └── vault[ANSEM  mint]  holds deposited ANSEM            │
+│   ├── UserAccount per wallet  (owner → ansem_chain_address)      │
+│   └── ProcessedBurn per burn_id  (withdraw idempotency)          │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         RELAYER  (one service, both directions)  │
+│                                                                  │
+│   DepositMonitor ───► EventProcessor ───► AnsemExecutor          │
+│   (Solana logs, per mint)                 (MsgMintFromBridge)     │
+│                                                                  │
+│   BurnMonitor ──────► EventProcessor ───► PoolExecutor           │
+│   (ansemchain blocks)             (Solana withdraw + status)     │
+│   withdrawals are serialized                                     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         ANSEMCHAIN                                │
+│                                                                  │
+│   x/bridge module                                                │
+│   ├── MsgMintFromBridge     (relayer)  → mints uchanse / uansem  │
+│   ├── MsgBurnForBridgeOut   (user)     → ESCROWS coins           │
+│   ├── ApproveBurn           (admin)    → clears pending_approval  │
+│   └── MsgUpdateBurnStatus   (relayer)  → completed / failed       │
+│                                                                  │
+│   Params: bridge_enabled, relayer_address, admin_address,        │
+│           max_burns_per_block, assets[]                          │
+│   assets[0] = CHANSE (priority; empty denom resolves here)       │
+│   BridgeMintedSupply tracked per denom                           │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Solana Bridge Program
+
+The Anchor program manages one pool vault per mint plus user accounts and withdraw guards on Solana.
+
+### Key Accounts
+
+| Account | Seeds | Purpose |
+|---------|-------|---------|
+| `BridgePool` | `[b"bridge_pool", mint]` | One per mint. Stores admin, relayer pubkey, vault reference, totals. The `pool_vault` pubkey sits at **byte offset 716** and the dApp reads it there, so that offset is load-bearing. |
+| `pool_vault` | `[b"pool_vault", mint, generation]` | One token account per mint, holding deposited SPL in custody. |
+| `UserAccount` | per wallet | Maps a Solana wallet to its `ansem_chain_address`. Registered once. |
+| `ProcessedBurn` | seeded on `burn_id` | Withdraw idempotency guard -- prevents releasing the same burn twice. |
+
+### Instructions
+
+| Instruction | Caller | Description |
+|-------------|--------|-------------|
+| `register` | User | Creates the `UserAccount` PDA, links Solana wallet to an ansemchain address |
+| `register_sponsored` | Relayer | Registers on the user's behalf, relayer pays the account rent |
+| `deposit` | User | Transfers an SPL from user into that mint's `pool_vault`, emits `DepositEvent` |
+| `withdraw` | Relayer only | Releases SPL from a mint's `pool_vault` to the user's token account; creates a `ProcessedBurn` |
+| `pause` / `unpause` | Admin | Emergency controls to halt bridge operations |
+
+### Token-2022
+
+Both mainnet mints (CHANSE and ANSEM) are **SPL Token-2022** mints. Token-2022 derives associated token accounts under a different program id than legacy SPL, so ATA derivation differs. The program and the app account for this when locating vaults and user token accounts.
+
+### Address Validation
+
+- ansemchain addresses must start with `ansem1` and be 39+ characters
+- Solana addresses must be valid Base58 (32 bytes)
+
+## ansemchain Bridge Module
+
+The `x/bridge` module handles minting, escrow-based burning, and per-denom supply tracking.
+
+### Parameters
+
+| Param | Meaning |
+|-------|---------|
+| `bridge_enabled` | Global on/off switch |
+| `relayer_address` | The only address allowed to mint and update burn status |
+| `admin_address` | Approves large withdrawals via `ApproveBurn` |
+| `max_burns_per_block` | Module-wide cap on withdrawals per block |
+| `assets[]` | List of `BridgeAsset` entries, one per bridged token |
+
+Each `BridgeAsset` = `{ solana_mint, denom, max_mint_per_tx, max_burn_per_tx, admin_approval_threshold, enabled }`. **`assets[0]` is the priority asset (CHANSE)**; a message with an empty denom resolves to it.
+
+### Messages
+
+| Message | Signer | Description |
+|---------|--------|-------------|
+| `MsgMintFromBridge` | Relayer | Mints the matching denom after a verified Solana deposit. Replay-guarded by the deposit tx signature (used as `streamflow_lock_id`). |
+| `MsgBurnForBridgeOut` | User | **Escrows** coins (does not burn). Amounts above `admin_approval_threshold` go to `pending_approval`. |
+| `ApproveBurn` | Admin | Clears a `pending_approval` withdrawal so the relayer can proceed. |
+| `MsgUpdateBurnStatus` | Relayer | `completed` burns the escrow and decrements that denom's `BridgeMintedSupply`; `failed` refunds the user. |
+
+### Supply Tracking
+
+The module keeps a `BridgeMintedSupply` per denom. It mints only what is locked in the corresponding Solana vault, and decrements on a `completed` withdrawal. This keeps the total of each asset across both chains constant.
+
+## Relayer
+
+The relayer is a single Node.js service that runs both directions and **serializes withdrawals** to avoid racing the vault.
+
+### Deposit path (Solana → ansemchain)
+
+- Monitors the `ansem-bridge` program for `DepositEvent` on each mint (WebSocket + polling backup)
+- Waits for Solana finality before acting
+- Submits `MsgMintFromBridge` for the matching denom, using the deposit tx signature as the replay key
+
+### Withdraw path (ansemchain → Solana)
+
+- Polls ansemchain blocks for `MsgBurnForBridgeOut` escrow events, keyed by `burn_id`
+- Skips anything still `pending_approval` until the admin `ApproveBurn`s it
+- Calls the Solana program's `withdraw` for the correct mint (creating a `ProcessedBurn` PDA on `burn_id`)
+- Resolves or creates the recipient's Token-2022 associated token account
+- Submits `MsgUpdateBurnStatus` (`completed` on success, `failed` on error, which refunds the escrow)
+
+## Security Features
+
+### Solana Side
+
+- **Per-mint custody** -- Each asset's tokens sit in its own auditable `pool_vault`
+- **Relayer authorization** -- Only the authorized relayer can execute `withdraw`
+- **Idempotent withdrawals** -- The `ProcessedBurn` PDA prevents double release for a `burn_id`
+- **Admin controls** -- Pause / unpause and emergency capabilities
+- **Event emission** -- Full audit trail via `DepositEvent` and `WithdrawEvent`
+
+### ansemchain Side
+
+- **Escrow, not immediate burn** -- Coins are held until Solana release confirms, then burned (`completed`) or refunded (`failed`)
+- **Per-asset limits** -- `max_mint_per_tx`, `max_burn_per_tx`, and `admin_approval_threshold` on each `BridgeAsset`
+- **Admin approval** -- Large withdrawals require an explicit `ApproveBurn`
+- **User-initiated burns** -- Users sign their own withdrawals; the relayer cannot move funds
+- **Replay protection** -- The deposit tx signature (`streamflow_lock_id`) makes each deposit mintable once
+- **Governance control** -- Assets and limits are adjustable via governance proposals
+
+### Relayer
+
+- **Finality wait** before processing deposits
+- **Serialized withdrawals** so concurrent releases cannot race the vault
+- **Deduplication** via `burn_id` and the on-chain `ProcessedBurn` guard
+
+## Failure Handling
+
+### Failed Withdrawals
+
+If a Solana release fails, the relayer submits `MsgUpdateBurnStatus: failed`, which **refunds the escrowed coins** to the user on ansemchain. No supply is lost because the coins were never burned.
+
+### Relayer Downtime
+
+If the relayer goes offline, no transfers are lost:
+
+- **Deposits**: resumes from the last processed Solana signature
+- **Withdrawals**: resumes from the last processed block; escrowed coins wait safely until release or refund
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Fees & Limits" icon="coins" href="/bridge/fees-and-limits">
+    Per-asset limits, thresholds, and gas requirements
+  </Card>
+  <Card title="FAQ" icon="circle-question" href="/bridge/faq">
+    Common questions about the bridge
+  </Card>
+</CardGroup>

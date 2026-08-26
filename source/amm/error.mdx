@@ -1,0 +1,76 @@
+---
+title: 'error.rs'
+description: 'The typed errors this contract can return, and the conditions that trigger them.'
+---
+
+The typed errors this contract can return, and the conditions that trigger them.
+
+<Info>Live source from `contracts/amm/src/error.rs` (66 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] StdError),
+
+    #[error("Unauthorized: only bonding curve contract can create pools")]
+    UnauthorizedPoolCreation {},
+
+    #[error("Pool already exists for token {token}")]
+    PoolAlreadyExists { token: String },
+
+    #[error("Pool not found for token {token}")]
+    PoolNotFound { token: String },
+
+    #[error("Insufficient liquidity in pool")]
+    InsufficientLiquidity {},
+
+    #[error("Slippage exceeded: expected minimum {expected}, got {actual}")]
+    SlippageExceeded { expected: u128, actual: u128 },
+
+    #[error("Zero amount not allowed")]
+    ZeroAmount {},
+
+    #[error("Invalid token: must send CW20 or native CHANSE")]
+    InvalidToken {},
+
+    #[error("Augmented fee configuration invalid: fee_bps must be > 0 and <= 500 (5%), target must be > 0")]
+    AugmentedFeeInvalid {},
+
+    #[error("Both augmented_fee_bps and lp_target_uchanse must be provided together, or neither")]
+    AugmentedFeeIncomplete {},
+
+    #[error("Total fee cap exceeded: swap_fee_bps ({swap_fee_bps}) + augmented_fee_bps ({augmented_fee_bps}) = {total} exceeds maximum of 1000 bps (10%)")]
+    TotalFeeCapExceeded {
+        swap_fee_bps: u16,
+        augmented_fee_bps: u16,
+        total: u16,
+    },
+
+    #[error("Max wallet exceeded: holding {current} + buying {buying} = {would_become} exceeds limit {limit}")]
+    MaxWalletExceeded {
+        current: u128,
+        buying: u128,
+        would_become: u128,
+        limit: u128,
+    },
+
+    #[error("Locked LP recipient is required when locked_lp_unlock_at is set")]
+    LockedLpRecipientRequired {},
+
+    #[error("Locked LP is permanently locked (no unlock timestamp set)")]
+    LockedLpPermanent {},
+
+    #[error("Locked LP not yet unlocked: still locked until {unlock_at} (now={now})")]
+    LockedLpStillLocked { unlock_at: u64, now: u64 },
+
+    #[error("Locked LP already withdrawn")]
+    LockedLpAlreadyWithdrawn {},
+
+    #[error("Unauthorized locked LP withdrawal: only the configured recipient may call")]
+    LockedLpUnauthorized {},
+}
+```

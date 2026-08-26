@@ -1,0 +1,29 @@
+---
+title: 'Security & Recovery'
+description: 'How keys are stored, and how to recover your wallet'
+---
+
+# Security & Recovery
+
+## How your keys are stored
+
+- Keys are generated on your device and encrypted with your password using industry-standard encryption
+- The extension never sends keys, seed phrases, or your password anywhere
+- Unlocking is local; your password decrypts the vault in memory for the session
+
+## The seed phrase is everything
+
+- Anyone with the phrase controls the wallet on **both** chains
+- Lose the phrase and the password and nobody can recover your funds
+- Store it offline. Never type it into a website. The extension will never ask for it outside the import flow.
+
+## Recovery
+
+Reinstall the extension on any machine and choose **Import**, then enter your phrase. Both your ansemchain and Solana accounts come back, including all launchpad tokens (they live on chain, not in the extension).
+
+## Good hygiene
+
+- Use a dedicated password, not one shared with other services
+- Verify the extension is the official **Ansem** listing before installing
+- Prefer a hardware wallet for large holdings; the extension supports hardware signers
+- Watch-only imports let you monitor an address without its keys ever touching the browser

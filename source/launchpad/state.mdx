@@ -1,0 +1,434 @@
+---
+title: 'state.rs'
+description: 'Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract''s state between calls.'
+---
+
+Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract's state between calls.
+
+<Info>Live source from `contracts/launchpad/src/state.rs` (425 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::Addr;
+use cw_storage_plus::{Item, Map};
+
+#[cw_serde]
+pub struct Config {
+    /// v7: master switch for presale creation. When false, CreateToken
+    /// with a presale config is rejected. Flip via UpdateConfig.
+    #[serde(default)]
+    pub presales_enabled: bool,
+    /// AMM contract address (for graduation)
+    pub amm_contract: Addr,
+    /// CW20 base code ID (for instantiating tokens)
+    pub cw20_code_id: u64,
+    /// Creation fee in uchanse (80,000 CHANSE = 80_000_000_000 uchanse)
+    pub creation_fee: u128,
+    /// Graduation threshold in uchanse (5,000,000 CHANSE = 5_000_000_000_000 uchanse)
+    pub graduation_threshold: u128,
+    /// Buy fee in basis points (50 = 0.5%)
+    pub buy_fee_bps: u16,
+    /// Sell fee in basis points (350 = 3.5%)
+    pub sell_fee_bps: u16,
+    /// Creator's share of fees in basis points (e.g., 2000 = 20%)
+    pub creator_fee_share_bps: u16,
+    /// Admin address authorized to update oracle price and config
+    #[serde(default = "default_admin")]
+    pub admin: Addr,
+    /// Target graduation market cap in micro-USD (6 decimals). Default: $10,000 = 10_000_000_000
+    #[serde(default)]
+    pub target_graduation_usd: u128,
+    /// Minimum graduation threshold in uchanse. Default: 100,000 CHANSE = 100_000_000_000
+    #[serde(default)]
+    pub min_graduation_threshold: u128,
+    /// Maximum graduation threshold in uchanse. Default: 50,000,000 CHANSE = 50_000_000_000_000
+    #[serde(default)]
+    pub max_graduation_threshold: u128,
+    /// Target starting market cap in micro-USD. Default: $1,000 = 1_000_000_000
+    #[serde(default)]
+    pub target_starting_mc_usd: u128,
+    /// Target total USD raised to graduate in micro-USD. Default: $2,000 = 2_000_000_000
+    #[serde(default)]
+    pub target_raised_usd: u128,
+    /// CHANSE-denominated graduation target in uchanse. When > 0, this overrides
+    /// the USD-derived dynamic threshold (no oracle dependency). Still clamped
+    /// to [min_graduation_threshold, max_graduation_threshold].
+    #[serde(default)]
+    pub target_raised_ansem: u128,
+    /// Max wallet holding in basis points of total supply (300 = 3%). 0 = disabled.
+    #[serde(default = "default_max_wallet_bps")]
+    pub max_wallet_bps: u16,
+    /// Address exempt from creation fee (e.g. auto-deploy bot). Empty = nobody exempt.
+    #[serde(default = "default_fee_exempt")]
+    pub fee_exempt_address: Addr,
+    /// Optional address of the ansem-oracle contract. When set, CHANSE/USD price for
+    /// USD-denominated graduation logic is read live from the oracle's TWAP query
+    /// instead of the legacy admin-set ORACLE_STATE. Empty = use the legacy local oracle.
+    #[serde(default = "default_oracle_contract")]
+    pub oracle_contract: Addr,
+    /// Cooldown between reuses of a (normalized) name or symbol. 0 = use default.
+    #[serde(default)]
+    pub name_cooldown_seconds: u64,
+    /// v4: code ID of the ansem-vesting CW contract. Used by
+    /// `FinalizePresale` to instantiate a per-creator vesting account
+    /// when `presale.creator_allocation_bps > 0`. Zero = vesting
+    /// disabled (FinalizePresale rejects creator-allocation presales
+    /// with `VestingNotConfigured`).
+    #[serde(default)]
+    pub vesting_code_id: u64,
+}
+
+fn default_admin() -> Addr {
+    Addr::unchecked("")
+}
+
+fn default_fee_exempt() -> Addr {
+    Addr::unchecked("")
+}
+
+fn default_oracle_contract() -> Addr {
+    Addr::unchecked("")
+}
+
+fn default_max_wallet_bps() -> u16 {
+    300
+}
+
+#[cw_serde]
+pub struct OracleState {
+    /// CHANSE/USD price in micro-USD (6 decimals). E.g., $2.00 = 2_000_000
+    #[serde(rename = "ansem_usd_price")]
+    pub ansem_usd_price: u128,
+    /// Block height of last price update
+    pub last_update_height: u64,
+    /// Timestamp (seconds) of last price update
+    pub last_update_timestamp: u64,
+}
+
+#[cw_serde]
+pub struct TokenMetadata {
+    pub name: String,
+    pub symbol: String,
+    pub image: String,
+    pub description: String,
+    pub social_links: Vec<String>,
+}
+
+#[cw_serde]
+pub struct Curve {
+    /// CW20 token address (set after instantiation)
+    pub token_address: Addr,
+    /// Token metadata
+    pub metadata: TokenMetadata,
+    /// Creator address
+    pub creator: Addr,
+    /// Total tokens sold (starts at 0)
+    pub tokens_sold: u128,
+    /// Total CHANSE accumulated in reserves
+    pub ansem_reserves: u128,
+    /// Whether curve has graduated
+    pub graduated: bool,
+    /// Block height when created
+    pub created_at: u64,
+    /// Total fees earned by creator
+    pub creator_fees_earned: u128,
+    /// Per-curve graduation threshold (ratcheted -- only increases).
+    /// None for legacy curves created before v2.0.
+    pub graduation_threshold_uchanse: Option<u128>,
+    /// Virtual CHANSE reserves at curve start (uchanse). 0 = use legacy hardcoded constants.
+    #[serde(default)]
+    pub virtual_ansem_start: u128,
+    /// Virtual token reserves at curve start (utokens). 0 = use legacy hardcoded constants.
+    #[serde(default)]
+    pub virtual_tokens_start: u128,
+    /// Constant product invariant K = virtual_ansem * virtual_tokens.
+    #[serde(default)]
+    pub curve_k: u128,
+    /// Tokens available for purchase on this curve (utokens).
+    #[serde(default)]
+    pub tokens_on_curve: u128,
+    /// Tokens reserved for LP at graduation (utokens).
+    #[serde(default)]
+    pub tokens_for_lp: u128,
+    /// v4: LP lock duration (seconds from graduation). Forwarded to
+    /// the AMM `CreatePool` so the locked LP seed has an unlock
+    /// timestamp. `None` or `Some(0)` = permanent lock (current
+    /// behavior pre-v4).
+    #[serde(default)]
+    pub lp_lock_seconds: Option<u64>,
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
+pub const CURVES: Map<&Addr, Curve> = Map::new("curves");
+/// Track pending token instantiation (token_addr not known yet)
+pub const PENDING_CURVE: Item<PendingCurve> = Item::new("pending_curve");
+pub const ORACLE_STATE: Item<OracleState> = Item::new("oracle_state");
+/// Track last creation time for each normalized symbol (lowercase + strip non-alphanumeric).
+/// Keys are the *normalized* form, so case / hyphens / spaces all collide.
+pub const SYMBOL_COOLDOWN: Map<&str, u64> = Map::new("symbol_cd");
+/// Track last creation time for each normalized name (lowercase + strip non-alphanumeric).
+pub const NAME_COOLDOWN: Map<&str, u64> = Map::new("name_cd");
+/// Permanent ban: once a curve graduates, its normalized name + symbol are
+/// blocked forever. Anti-vampire: an attacker can't fork a successful
+/// graduated token's branding even after the cooldown expires.
+pub const NAME_PERMA_BLOCK: Map<&str, u64> = Map::new("name_block");
+pub const SYMBOL_PERMA_BLOCK: Map<&str, u64> = Map::new("symbol_block");
+
+/// Default reuse cooldown (3 hours). Configurable via UpdateConfig.
+/// Short enough to allow honest re-pivots after a failed launch; long
+/// enough that a copycat can't immediately fork a successful token's
+/// branding the moment the original rugs/expires.
+pub const DEFAULT_NAME_COOLDOWN_SECS: u64 = 3 * 3600;
+
+/// Normalize a name/ticker for collision detection. Lowercases ASCII and
+/// strips anything that isn't a letter or digit. This catches "CHANSE",
+/// "ansem", "C-H-A-N-S-E", "CHANSE V2" → `chansev2` etc, so an attacker can't
+/// fork a successful token's branding by adding a separator.
+pub fn normalize_for_cooldown(input: &str) -> String {
+    input
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_lowercase())
+        .collect()
+}
+
+// ── Metadata voting (v3) ──────────────────────────────────────────────────
+//
+// Token holders weighted by current CW20 balance can vote on each metadata
+// field (name / symbol / image / description). The contract maintains a
+// running tally so the "currently winning" value for each field is O(1)
+// to query. An off-chain (or in-dApp) sweeper calls ApplyMetadata every
+// METADATA_APPLY_INTERVAL_SECS (default 600s) which snaps the winning
+// value into the canonical metadata if it differs.
+//
+// Vote weight = CW20 balance snapshot at vote time. Voters can re-vote
+// to refresh their snapshot or change their pick; the old weight is
+// subtracted from the previous tallies before the new one is added.
+
+/// Initial cooldown before the first apply for a token. After the first
+/// apply, subsequent vote changes update applied metadata inline (no
+/// cooldown — whoever's currently winning wins live).
+pub const METADATA_FIRST_APPLY_DELAY_SECS: u64 = 600;
+/// Total voting window per token (48h). After this, VoteMetadata +
+/// ApplyMetadata are refused — metadata is locked.
+pub const METADATA_VOTING_WINDOW_SECS: u64 = 48 * 3600;
+
+#[cw_serde]
+#[derive(Default)]
+pub struct MetadataVote {
+    /// The voter's pick for the name field, if any. None = no opinion.
+    pub name: Option<String>,
+    pub symbol: Option<String>,
+    pub image: Option<String>,
+    pub description: Option<String>,
+    /// CW20 balance snapshotted at vote time.
+    pub weight: u128,
+}
+
+#[cw_serde]
+pub struct AppliedMetadata {
+    pub name: String,
+    pub symbol: String,
+    pub image: String,
+    pub description: String,
+    /// Unix seconds — last time ApplyMetadata ran and possibly changed something.
+    pub last_applied_at: u64,
+    /// Unix seconds — when metadata voting opened for this token (set on
+    /// curve create OR lazy-init for pre-v3 curves). Voting closes at
+    /// `created_at_secs + METADATA_VOTING_WINDOW_SECS`.
+    #[serde(default)]
+    pub created_at_secs: u64,
+    /// Unix seconds — first time anyone cast a non-empty vote on this
+    /// token. 0 = no vote yet, the first-apply countdown hasn't started.
+    /// METADATA_FIRST_APPLY_DELAY_SECS runs from this timestamp, not from
+    /// token creation, so a sleepy token doesn't auto-snap to its own
+    /// initial metadata 10 min after launch.
+    #[serde(default)]
+    pub first_vote_at: u64,
+    /// Number of completed apply ticks. 0 = no apply yet (first one is
+    /// gated behind METADATA_FIRST_APPLY_DELAY_SECS from first_vote_at).
+    /// > 0 = subsequent vote changes take effect inline at vote time.
+    #[serde(default)]
+    pub apply_count: u64,
+    /// Social links — voted on independently. Lazy-init parses
+    /// curve.metadata.social_links by position [0]=twitter,[1]=telegram,
+    /// [2]=website (the dApp convention since CreateTab). On apply we
+    /// rebuild that Vec from these three fields, filtering empties.
+    #[serde(default)]
+    pub twitter: String,
+    #[serde(default)]
+    pub telegram: String,
+    #[serde(default)]
+    pub website: String,
+}
+
+/// Per-token per-voter MetadataVote.
+pub const METADATA_VOTES: Map<(&Addr, &Addr), MetadataVote> = Map::new("meta_votes");
+
+/// Sum of vote weights for (token, field, value). Keys are (token, "field:value").
+/// We pack the field+value into a single &str key because cw-storage-plus
+/// composite keys for owned Strings are noisier than this serialization.
+pub const METADATA_TALLIES: Map<(&Addr, &str), u128> = Map::new("meta_tally");
+
+/// Currently-canonical metadata per token. Set on token create from the
+/// CreateToken args; updated by ApplyMetadata when voting majority differs.
+pub const APPLIED_METADATA: Map<&Addr, AppliedMetadata> = Map::new("meta_applied");
+
+#[cw_serde]
+pub struct PendingCurve {
+    pub metadata: TokenMetadata,
+    pub creator: Addr,
+    pub initial_ansem: u128,
+    #[serde(default)]
+    pub virtual_ansem_start: u128,
+    #[serde(default)]
+    pub virtual_tokens_start: u128,
+    #[serde(default)]
+    pub curve_k: u128,
+    #[serde(default)]
+    pub tokens_on_curve: u128,
+    #[serde(default)]
+    pub tokens_for_lp: u128,
+    #[serde(default)]
+    pub graduation_threshold_uchanse: u128,
+    /// v4: optional presale config attached at CreateToken time. The
+    /// pending curve carries it across the cw20 instantiation reply.
+    /// `None` means classic flow (curve opens immediately).
+    #[serde(default)]
+    pub presale: Option<PresaleConfig>,
+    /// v4: optional creator-vesting config. Funded after presale ends
+    /// (or immediately on graduation if no presale).
+    #[serde(default)]
+    pub creator_vesting: Option<CreatorVestingConfig>,
+    /// v4: optional LP-lock duration for the eventual AMM pool. Seconds
+    /// from graduation time. `None` or 0 = permanent lock (current
+    /// behavior).
+    #[serde(default)]
+    pub lp_lock_seconds: Option<u64>,
+}
+
+// ── Presale (v4) ──────────────────────────────────────────────────────────
+//
+// Presale is per-token. When CreateToken sets `presale: Some(cfg)`, the
+// curve is created in `presale_pending` state and ALL public Buy/Sell
+// is rejected until `FinalizePresale` runs. Presale buyers send CHANSE
+// + a Merkle proof; tokens transfer to them instantly (no buyer-side
+// vesting per design). At end_time or hard-cap, anyone calls
+// FinalizePresale which:
+//   1) (optionally) instantiates a ansem-vesting account for the creator
+//   2) seeds the AMM... wait no — seeds the BONDING CURVE with leftover
+//      tokens + raised CHANSE
+//   3) sets `presale.finalized = true`, opening Buy/Sell
+//
+// The unsold-token math at finalize:
+//   sold_during_presale = presale.tokens_sold
+//   creator_allocation = total_supply * creator_allocation_bps / 10000
+//   leftover_for_curve = total_supply - sold_during_presale - creator_allocation
+// Raised CHANSE becomes the curve's initial `ansem_reserves`, which means
+// the existing graduation logic carries over with no special-case.
+
+#[cw_serde]
+pub struct PresaleConfig {
+    /// Price in uchanse per utoken (6 decimals applied to both sides).
+    /// e.g. 1_000_000 uchanse / utoken == 1 CHANSE per 1 token.
+    pub price_uchanse_per_utoken: u128,
+    /// Hard cap on CHANSE raised during presale. Once `ansem_raised`
+    /// reaches this, further buys reject. Doubles as the soft cap
+    /// "trigger" for an early finalize.
+    pub hard_cap_uchanse: u128,
+    /// Per-wallet cap (uchanse contributed). `None` = no per-wallet cap.
+    pub per_wallet_cap_uchanse: Option<u128>,
+    /// Unix seconds — earliest BuyPresale accepted.
+    pub start_time: u64,
+    /// Unix seconds — latest BuyPresale accepted. After this, anyone
+    /// can call FinalizePresale even if hard cap wasn't hit.
+    pub end_time: u64,
+    /// SHA-256 Merkle root of allowlisted addresses. Leaf = sha256(addr_bytes).
+    /// Empty `[0u8; 32]` is treated as "no allowlist" (open presale).
+    pub merkle_root: [u8; 32],
+    /// Basis points of total supply reserved for creator vesting.
+    /// 0 = no creator allocation. Capped at MAX_CREATOR_ALLOCATION_BPS
+    /// (default 2000 = 20%) at validation time.
+    #[serde(default)]
+    pub creator_allocation_bps: u16,
+    /// v7 (MetaDAO-style): minimum CHANSE that must be raised by end_time.
+    /// If unmet at finalize, the presale fails and every contributor can
+    /// claim a full refund. 0 = no minimum.
+    #[serde(default)]
+    pub min_raise_uchanse: u128,
+    /// v7 (MetaDAO-style): when true, contributions keep being accepted
+    /// past the hard cap. At finalize only `hard_cap_uchanse` is accepted,
+    /// pro rata across contributors; the surplus is refundable at claim.
+    #[serde(default)]
+    pub allow_oversubscription: bool,
+}
+
+#[cw_serde]
+pub struct PresaleState {
+    pub config: PresaleConfig,
+    /// Total CHANSE contributed during the presale window.
+    pub ansem_raised: u128,
+    /// Total tokens transferred out to presale buyers.
+    pub tokens_sold: u128,
+    /// True after FinalizePresale runs. Curve Buy/Sell unblocks here.
+    pub finalized: bool,
+    /// v7: true when the presale closed below min_raise_uchanse. All
+    /// contributions become refundable via ClaimPresale.
+    #[serde(default)]
+    pub failed: bool,
+    /// v7: true for presales created under the escrow model (tokens are
+    /// held by the launchpad until ClaimPresale after finalize). Legacy
+    /// presales (false) transferred tokens at buy time; their claims are
+    /// rejected to prevent double payout.
+    #[serde(default)]
+    pub escrowed: bool,
+    /// Set on finalize when `creator_allocation_bps > 0`. Address of
+    /// the freshly instantiated ansem-vesting contract.
+    pub creator_vesting_contract: Option<Addr>,
+}
+
+#[cw_serde]
+pub struct CreatorVestingConfig {
+    /// Cliff length in seconds, counted from presale end_time (or from
+    /// curve creation if no presale). 0 = no cliff.
+    pub cliff_seconds: u64,
+    /// Total vesting duration in seconds, counted from the same anchor.
+    /// `duration_seconds <= cliff_seconds` means a pure cliff drop.
+    /// `cliff_seconds == 0` means pure linear.
+    pub duration_seconds: u64,
+}
+
+/// Hard upper bound on creator allocation. The protocol-level cap so a
+/// creator can't reserve everything for themselves. Configurable via
+/// UpdateConfig in a future migration; baked in for v4.
+pub const MAX_CREATOR_ALLOCATION_BPS: u16 = 2000; // 20%
+
+/// Per-token presale state. Created at CreateToken if presale config
+/// was provided. After `finalized = true` it's read-only history.
+pub const PRESALES: Map<&Addr, PresaleState> = Map::new("presales");
+
+/// (token_address, buyer) -> cumulative uchanse contributed during presale.
+/// Used for per-wallet cap enforcement. Not pruned post-finalize so the
+/// UI can show per-buyer history.
+pub const PRESALE_CONTRIBUTIONS: Map<(&Addr, &Addr), u128> = Map::new("presale_contrib");
+/// v7: (token, buyer) -> true once ClaimPresale paid out (tokens or refund).
+pub const PRESALE_CLAIMED: Map<(&Addr, &Addr), bool> = Map::new("presale_claimed");
+
+/// Per-token vesting instance address, mirror of `PresaleState.creator_vesting_contract`.
+/// Stored separately so queries don't need to load the whole presale state.
+pub const VESTING_INSTANCES: Map<&Addr, Addr> = Map::new("vesting_instances");
+
+// Reply IDs are declared inline in contract.rs: `REPLY_CW20_INSTANTIATE = 1`
+// (existing) and `REPLY_VESTING_INSTANTIATE = 2` (v4 new).
+
+/// Stash data needed to finish FinalizePresale across the vesting-
+/// instantiation reply. token_address keys it.
+#[cw_serde]
+pub struct PendingFinalize {
+    pub token_address: Addr,
+    pub creator_allocation_utokens: u128,
+    pub vesting_funding_utokens: u128,
+}
+
+pub const PENDING_FINALIZE: Item<PendingFinalize> = Item::new("pending_finalize");
+```

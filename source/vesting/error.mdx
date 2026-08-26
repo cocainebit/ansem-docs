@@ -1,0 +1,43 @@
+---
+title: 'error.rs'
+description: 'The typed errors this contract can return, and the conditions that trigger them.'
+---
+
+The typed errors this contract can return, and the conditions that trigger them.
+
+<Info>Live source from `contracts/vesting/src/error.rs` (33 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::StdError;
+use thiserror::Error;
+
+#[derive(Error, Debug, PartialEq)]
+pub enum ContractError {
+    #[error("{0}")]
+    Std(#[from] StdError),
+
+    #[error("unauthorized")]
+    Unauthorized {},
+
+    #[error("schedule is invalid: {reason}")]
+    InvalidSchedule { reason: String },
+
+    #[error("vesting account is already funded")]
+    AlreadyFunded {},
+
+    #[error("vesting account is not funded yet")]
+    NotFunded {},
+
+    #[error("funding amount mismatch: expected {expected}, got {got}")]
+    FundingMismatch { expected: String, got: String },
+
+    #[error("funding token mismatch: expected {expected}, got {got}")]
+    FundingTokenMismatch { expected: String, got: String },
+
+    #[error("nothing claimable yet")]
+    NothingToClaim {},
+
+    #[error("cw20 hook called by non-token contract")]
+    InvalidHook {},
+}
+```

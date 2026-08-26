@@ -1,0 +1,417 @@
+---
+title: 'msg.rs'
+description: 'The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type.'
+---
+
+The public interface: every `InstantiateMsg`, `ExecuteMsg`, `QueryMsg`, and response type. This is the contract's API surface, what you can call and what comes back.
+
+<Info>Live source from `contracts/launchpad/src/msg.rs` (407 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, Binary, Uint128};
+use crate::state::{CreatorVestingConfig, PresaleConfig, TokenMetadata};
+
+#[cw_serde]
+pub struct InstantiateMsg {
+    pub amm_contract: String,
+    pub cw20_code_id: u64,
+    pub creation_fee: Uint128,
+    pub graduation_threshold: Uint128,
+    pub buy_fee_bps: u16,
+    pub sell_fee_bps: u16,
+    pub creator_fee_share_bps: u16,
+    pub admin: String,
+    pub target_graduation_usd: Uint128,
+    pub min_graduation_threshold: Uint128,
+    pub max_graduation_threshold: Uint128,
+    pub target_starting_mc_usd: Uint128,
+    pub target_raised_usd: Uint128,
+    /// Optional CHANSE-denominated graduation target (uchanse). When > 0, overrides USD-derived threshold.
+    #[serde(default)]
+    pub target_raised_ansem: Uint128,
+    /// Max wallet holding in basis points of total supply (300 = 3%). 0 = disabled.
+    pub max_wallet_bps: u16,
+}
+
+#[cw_serde]
+pub enum ExecuteMsg {
+    /// LAUNCH-01: Create new token with bonding curve.
+    ///
+    /// v4 additions (all optional, backwards-compatible):
+    /// - `presale`: if Some, the curve is created in `presale_pending` state.
+    ///   Public Buy/Sell is rejected until `FinalizePresale` opens the curve.
+    /// - `creator_vesting`: if Some AND `presale.creator_allocation_bps > 0`,
+    ///   the launchpad instantiates a ansem-vesting account for the creator
+    ///   at finalize time and funds it with the allocation.
+    /// - `lp_lock_seconds`: optional LP lock duration (seconds from graduation).
+    ///   `None` or `Some(0)` = permanent lock (current behavior). Propagated
+    ///   to AMM `CreatePool` at graduation.
+    CreateToken {
+        name: String,
+        symbol: String,
+        image: String,
+        description: String,
+        social_links: Vec<String>,
+        #[serde(default)]
+        presale: Option<PresaleConfig>,
+        #[serde(default)]
+        creator_vesting: Option<CreatorVestingConfig>,
+        #[serde(default)]
+        lp_lock_seconds: Option<u64>,
+    },
+    /// LAUNCH-02: Buy tokens along curve
+    Buy {
+        token_address: String,
+        min_tokens_out: Uint128,
+    },
+    /// LAUNCH-03: Sell tokens back to curve
+    /// Note: Uses CW20 Receive pattern (send tokens to this contract)
+    Receive(cw20::Cw20ReceiveMsg),
+    /// LAUNCH-04: Graduate curve to AMM (permissionless)
+    /// Can be called by anyone if threshold reached
+    Graduate {
+        token_address: String,
+    },
+    /// Update CHANSE/USD oracle price (admin only)
+    UpdateAnsemPrice {
+        /// Price in micro-USD (6 decimals). $2.00 = 2_000_000
+        ansem_usd_price: Uint128,
+    },
+    /// Update config parameters (admin only)
+    UpdateConfig {
+        target_graduation_usd: Option<Uint128>,
+        min_graduation_threshold: Option<Uint128>,
+        max_graduation_threshold: Option<Uint128>,
+        target_starting_mc_usd: Option<Uint128>,
+        target_raised_usd: Option<Uint128>,
+        /// v5: CHANSE-denominated graduation target (uchanse). 0 means use USD logic.
+        #[serde(default)]
+        target_raised_ansem: Option<Uint128>,
+        /// v7: master switch for presale creation.
+        #[serde(default)]
+        presales_enabled: Option<bool>,
+        max_wallet_bps: Option<u16>,
+        fee_exempt_address: Option<String>,
+        /// v2: address of the ansem-oracle contract. Empty string clears it (falls back to legacy local oracle).
+        oracle_contract: Option<String>,
+        /// v3: cooldown between reuses of the same (normalized) name or symbol.
+        /// 0 resets to the default (7 days).
+        name_cooldown_seconds: Option<u64>,
+        /// v4: code ID of the ansem-vesting CW contract. Used by
+        /// FinalizePresale to instantiate per-creator vesting accounts.
+        #[serde(default)]
+        vesting_code_id: Option<u64>,
+    },
+    /// LAUNCH-08 (v3): Cast vote for one or more metadata fields. Vote
+    /// weight = caller's current CW20 balance for `token_address`.
+    /// Re-voting refreshes the weight snapshot. Setting a field to None
+    /// withdraws the caller's vote for that field. Setting a field to
+    /// the empty string is rejected.
+    VoteMetadata {
+        token_address: String,
+        name: Option<String>,
+        symbol: Option<String>,
+        image: Option<String>,
+        description: Option<String>,
+    },
+    /// LAUNCH-09 (v3): Snapshot the current voting majority into the
+    /// canonical metadata. Permissionless; refuses if called within
+    /// METADATA_APPLY_INTERVAL_SECS of the last apply.
+    ApplyMetadata {
+        token_address: String,
+    },
+    /// LAUNCH-10 (v4): Buy tokens during the presale window at the fixed
+    /// `presale.price_uchanse_per_utoken`. Caller must:
+    ///   - send CHANSE funds (`ansem_in`),
+    ///   - present a valid `merkle_proof` for sha256(canonical_address_bytes),
+    ///   - not exceed `per_wallet_cap_uchanse` (when configured),
+    ///   - send within `[start_time, end_time]`.
+    /// `merkle_proof` is empty for pre-finalize public presales (root == [0u8; 32]).
+    BuyPresale {
+        token_address: String,
+        merkle_proof: Vec<Binary>,
+        /// Minimum tokens out (slippage protection — only relevant if the
+        /// per-wallet cap would clip the buyer's contribution mid-tx).
+        min_tokens_out: Uint128,
+    },
+    /// LAUNCH-11 (v4): Permissionlessly close the presale and open the
+    /// bonding curve. Eligible once `end_time` has elapsed OR the hard
+    /// cap has been reached. Side effects:
+    ///   - seeds the curve with `ansem_raised` + leftover tokens,
+    ///   - if `creator_allocation_bps > 0` and `creator_vesting` was set,
+    ///     instantiates a ansem-vesting account and funds it,
+    ///   - marks `presale.finalized = true`,
+    ///   - unlocks public Buy/Sell on the curve.
+    FinalizePresale {
+        token_address: String,
+    },
+    /// v7: claim tokens (and any pro-rata surplus refund) after a
+    /// successful escrowed presale, or a full refund after a failed one.
+    ClaimPresale {
+        token_address: String,
+    },
+    // Note: Reply handler is implemented in contract.rs, not as an ExecuteMsg variant
+}
+
+/// Message sent inside CW20 Send for sells
+#[cw_serde]
+pub struct SellTokens {
+    pub min_ansem_out: Uint128,
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    /// Get curve info for a token
+    #[returns(CurveResponse)]
+    Curve { token_address: String },
+    /// Get all active curves
+    #[returns(AllCurvesResponse)]
+    AllCurves {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
+    /// LAUNCH-07: Query progress toward graduation
+    #[returns(ProgressResponse)]
+    Progress { token_address: String },
+    /// Get config
+    #[returns(ConfigResponse)]
+    Config {},
+    /// Simulate buy
+    #[returns(SimulateBuyResponse)]
+    SimulateBuy {
+        token_address: String,
+        ansem_amount: Uint128,
+    },
+    /// Simulate sell
+    #[returns(SimulateSellResponse)]
+    SimulateSell {
+        token_address: String,
+        token_amount: Uint128,
+    },
+    /// Get oracle state (price, last update)
+    #[returns(OracleResponse)]
+    Oracle {},
+    /// LAUNCH-08 (v3): metadata voting state for a token.
+    #[returns(MetadataStateResponse)]
+    MetadataState {
+        token_address: String,
+    },
+    /// LAUNCH-08 (v3): how a specific voter has voted (or None).
+    #[returns(MetadataVoteResponse)]
+    MetadataVote {
+        token_address: String,
+        voter: String,
+    },
+    /// LAUNCH-10 (v4): per-token presale state. Includes config + running
+    /// totals + finalize status + the vesting contract address (if any).
+    #[returns(PresaleResponse)]
+    Presale {
+        token_address: String,
+    },
+    /// LAUNCH-10 (v4): how much a buyer has contributed (uchanse) and how
+    /// many utokens they received. Both zero when the buyer hasn't bought.
+    #[returns(PresaleContributionResponse)]
+    PresaleContribution {
+        token_address: String,
+        buyer: String,
+    },
+}
+
+// Response types
+#[cw_serde]
+pub struct CurveResponse {
+    pub token_address: Addr,
+    pub metadata: TokenMetadata,
+    pub creator: Addr,
+    pub tokens_sold: Uint128,
+    pub tokens_remaining: Uint128,
+    pub ansem_reserves: Uint128,
+    pub current_price: String,
+    pub graduated: bool,
+    pub created_at: u64,
+    pub virtual_ansem_start: Uint128,
+    pub virtual_tokens_start: Uint128,
+    pub tokens_on_curve: Uint128,
+    pub tokens_for_lp: Uint128,
+}
+
+#[cw_serde]
+pub struct AllCurvesResponse {
+    pub curves: Vec<CurveResponse>,
+}
+
+#[cw_serde]
+pub struct ProgressResponse {
+    pub token_address: Addr,
+    pub ansem_raised: Uint128,
+    pub graduation_threshold: Uint128,
+    pub progress_percent: String,
+    pub tokens_sold: Uint128,
+    pub tokens_remaining: Uint128,
+    pub graduated: bool,
+}
+
+#[cw_serde]
+pub struct ConfigResponse {
+    pub amm_contract: Addr,
+    pub cw20_code_id: u64,
+    pub creation_fee: Uint128,
+    pub graduation_threshold: Uint128,
+    pub buy_fee_bps: u16,
+    pub sell_fee_bps: u16,
+    pub admin: Addr,
+    pub target_graduation_usd: Uint128,
+    pub min_graduation_threshold: Uint128,
+    pub max_graduation_threshold: Uint128,
+    pub target_starting_mc_usd: Uint128,
+    pub target_raised_usd: Uint128,
+    #[serde(default)]
+    pub target_raised_ansem: Uint128,
+    pub max_wallet_bps: u16,
+    pub fee_exempt_address: Addr,
+}
+
+#[cw_serde]
+pub struct SimulateBuyResponse {
+    pub tokens_out: Uint128,
+    pub fee_amount: Uint128,
+    pub new_price: String,
+}
+
+#[cw_serde]
+pub struct SimulateSellResponse {
+    pub ansem_out: Uint128,
+    pub fee_amount: Uint128,
+    pub burned_amount: Uint128,
+    pub new_price: String,
+}
+
+#[cw_serde]
+pub struct OracleResponse {
+    #[serde(rename = "ansem_usd_price")]
+    pub ansem_usd_price: Uint128,
+    pub last_update_height: u64,
+    pub last_update_timestamp: u64,
+}
+
+/// Per-field current leader for a metadata vote.
+#[cw_serde]
+pub struct MetadataFieldState {
+    /// The applied / canonical value right now (what the dApp shows).
+    pub applied: String,
+    /// The value currently winning the vote (may equal `applied`).
+    pub leading: String,
+    /// Total weight behind `leading`. 0 means nobody has voted on this field.
+    pub leading_weight: Uint128,
+    /// Total weight cast across all values for this field (incl. `leading`).
+    pub total_weight: Uint128,
+}
+
+#[cw_serde]
+pub struct MetadataStateResponse {
+    pub token_address: Addr,
+    pub name: MetadataFieldState,
+    pub symbol: MetadataFieldState,
+    pub image: MetadataFieldState,
+    pub description: MetadataFieldState,
+    /// Unix seconds — last apply tick.
+    pub last_applied_at: u64,
+    /// Unix seconds — earliest time the next ApplyMetadata is allowed.
+    /// Only meaningful when apply_count == 0 (i.e. first apply still
+    /// pending). After the first apply, vote changes apply inline at
+    /// vote time and this value is just `created_at_secs`.
+    pub next_apply_eligible_at: u64,
+    /// Number of completed apply ticks. 0 = first apply still pending
+    /// (10-min stabilization window). > 0 = votes apply inline.
+    pub apply_count: u64,
+    /// Unix seconds — voting window opened.
+    pub created_at_secs: u64,
+    /// Unix seconds — voting window closes (created_at_secs + 48h).
+    pub voting_closes_at: u64,
+    /// Unix seconds — first non-empty vote for this token. 0 = no votes
+    /// yet; the 10-min first-apply countdown hasn't started.
+    pub first_vote_at: u64,
+}
+
+#[cw_serde]
+pub struct PresaleResponse {
+    pub token_address: Addr,
+    pub config: PresaleConfig,
+    pub ansem_raised: Uint128,
+    pub tokens_sold: Uint128,
+    /// v7: closed below min raise; contributions refundable.
+    #[serde(default)]
+    pub failed: bool,
+    /// v7: escrow model (claim after finalize) vs legacy instant delivery.
+    #[serde(default)]
+    pub escrowed: bool,
+    pub finalized: bool,
+    pub creator_vesting_contract: Option<Addr>,
+    /// Convenience: true when `start_time <= now < end_time AND !finalized`.
+    pub is_active: bool,
+    /// Convenience: true when finalize is eligible (end_time elapsed OR
+    /// hard cap hit) and finalized == false.
+    pub can_finalize: bool,
+    /// Block time at query, so UIs don't need a clock round-trip.
+    pub now_seconds: u64,
+}
+
+#[cw_serde]
+pub struct PresaleContributionResponse {
+    pub buyer: Addr,
+    pub token_address: Addr,
+    pub ansem_contributed: Uint128,
+    pub tokens_received: Uint128,
+    /// v7: true once ClaimPresale paid out.
+    #[serde(default)]
+    pub claimed: bool,
+    /// v7: CHANSE refundable at claim time (full contribution on a failed
+    /// presale, pro-rata surplus on an oversubscribed one).
+    #[serde(default)]
+    pub refundable_uchanse: Uint128,
+}
+
+#[cw_serde]
+pub struct MetadataVoteResponse {
+    pub voter: Addr,
+    /// None for any field the voter hasn't picked.
+    pub name: Option<String>,
+    pub symbol: Option<String>,
+    pub image: Option<String>,
+    pub description: Option<String>,
+    /// The weight snapshot stored with this voter's last vote.
+    /// Zero if the voter hasn't voted on this token.
+    pub weight: Uint128,
+}
+
+#[cw_serde]
+pub struct MigrateMsg {
+    /// Optional: reset `Config.admin` to this address. Useful when a prior migrate
+    /// hardcoded a now-defunct admin and the wasm-level admin needs to repair it.
+    pub admin: Option<String>,
+    /// Optional: set `Config.oracle_contract` (live CHANSE/USD oracle).
+    /// Empty string clears it; absent leaves it unchanged.
+    pub oracle_contract: Option<String>,
+    /// Optional: set `Config.fee_exempt_address`. Empty string clears it.
+    pub fee_exempt_address: Option<String>,
+    /// Optional: reset `Config.creation_fee` (in uchanse).
+    pub creation_fee: Option<Uint128>,
+    /// Optional: reset `Config.graduation_threshold` fields.
+    pub graduation_threshold: Option<Uint128>,
+    pub min_graduation_threshold: Option<Uint128>,
+    pub max_graduation_threshold: Option<Uint128>,
+    /// Optional: reset target USD parameters.
+    pub target_graduation_usd: Option<Uint128>,
+    pub target_starting_mc_usd: Option<Uint128>,
+    pub target_raised_usd: Option<Uint128>,
+    /// Optional: reset fee bps.
+    pub buy_fee_bps: Option<u16>,
+    pub sell_fee_bps: Option<u16>,
+    pub creator_fee_share_bps: Option<u16>,
+    pub max_wallet_bps: Option<u16>,
+    /// v4: set the ansem-vesting code id (used by FinalizePresale).
+    pub vesting_code_id: Option<u64>,
+}
+```

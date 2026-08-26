@@ -1,0 +1,81 @@
+---
+title: 'Queries'
+description: 'Ping the chain - balances, status, and token info'
+---
+
+# Queries
+
+The read-only commands let anyone query the chain in one line. They need no wallet and no configuration - they hit the live network by default. Add `--json` to any of them for scripting.
+
+## Balance
+
+```bash wrap
+ansem balance ansem1zcuz25n78tkvmgqfn9qx9w7gz2ge0tgjyhptgy
+```
+
+```
+19.994021 CHANSE
+```
+
+JSON:
+
+```bash wrap
+ansem balance ansem1zcuz… --json
+```
+
+```json wrap
+{
+  "address": "ansem1zcuz…",
+  "denom": "uchanse",
+  "amount": "19994021",
+  "display": "19.994021 CHANSE"
+}
+```
+
+<Note>
+**CHANSE (`uchanse`, 6 decimals) is the native token** - it pays gas and is what `balance` reports by default. **ANSEM (`uansem`) is a separate bridged asset**, not the gas token; if a wallet holds it, it shows up as its own denom alongside CHANSE in a full balance query.
+</Note>
+
+## Status
+
+Chain id, current height, and reachability - the quickest way to confirm the network is up and which endpoint you're hitting. `ping` is an alias.
+
+```bash wrap
+ansem status
+```
+
+```
+chain ansem-1 · height 278340 · https://rpc.ansemchain.fun
+```
+
+```bash wrap
+ansem status --json
+```
+
+```json wrap
+{
+  "chain_id": "ansem-1",
+  "height": 278340,
+  "rpc": "https://rpc.ansemchain.fun",
+  "rest": "https://rest.ansemchain.fun",
+  "reachable": true
+}
+```
+
+## Token
+
+The canonical CHANSE token details, including the Solana SPL mint (resolved live from the chain):
+
+```bash wrap
+ansem token
+```
+
+```
+token:    CHANSE (uchanse, 6 decimals)
+chain:    ansem-1
+SPL mint: 8eJrnMwC3cjGNNMWYBxfpf91AwzTVzgKUL7kQwwEpump
+```
+
+<Card title="Send CHANSE" icon="paper-plane-top" href="/cli/transactions">
+  Move funds with a signed transaction
+</Card>

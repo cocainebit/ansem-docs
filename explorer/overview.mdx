@@ -1,0 +1,147 @@
+---
+title: 'Explorer Overview'
+description: 'Browse blocks, transactions, accounts, and contracts on ansemchain'
+---
+
+# Explorer Overview
+
+The ansemchain Explorer is a web-based interface for browsing all on-chain activity. You can view blocks, transactions, accounts, validators, governance proposals, smart contracts, and bridge operations.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Blocks" icon="cube">
+    View recent blocks, transaction counts, and block proposers. Estimate when future blocks will be produced.
+  </Card>
+  <Card title="Transactions" icon="receipt">
+    Browse transactions by block or search by TX hash. View message details, gas usage, and fees.
+  </Card>
+  <Card title="Accounts" icon="user">
+    Check balances, delegations, rewards, unbonding status, CW20 token holdings, and transaction history.
+  </Card>
+  <Card title="Validators" icon="server">
+    View active validators, voting power, commission rates, uptime, and 24-hour performance changes.
+  </Card>
+</CardGroup>
+
+<CardGroup cols={2}>
+  <Card title="Governance" icon="landmark">
+    Browse proposals by status (voting, passed, rejected). View proposal details and voting results.
+  </Card>
+  <Card title="Smart Contracts" icon="code">
+    Browse deployed CosmWasm contracts by code ID. Search by contract address or creator. View contract transactions.
+  </Card>
+  <Card title="Bridge" icon="bridge">
+    View bridge parameters, minted supply, mint records, burn records, and verified wallet mappings.
+  </Card>
+  <Card title="Staking" icon="coins">
+    Delegate, redelegate, and undelegate directly from the explorer. View staking rewards and unbonding timers.
+  </Card>
+</CardGroup>
+
+## Main Sections
+
+### Dashboard
+
+The landing page shows:
+
+- Current CHANSE price and market chart
+- Price calculator (CHANSE to USD)
+- Active governance proposals
+- Your wallet summary (if connected): balance, staking, rewards, unbonding
+- Quick actions: swap, send, delegate, receive
+
+### Blocks
+
+Browse recent blocks with transaction counts and proposer info. Each block page shows:
+
+- Block height and timestamp
+- Proposer validator
+- All transactions in the block
+- Gas usage
+
+### Transactions
+
+View recent transactions across the chain. Each transaction page shows:
+
+- TX hash and success/failure status
+- Block height (linked)
+- Gas used and fees paid
+- Message details (transfers, contract executions, governance votes, etc.)
+- Raw JSON data
+
+### Accounts
+
+View any account by address:
+
+- Native CHANSE and ANSEM balances
+- CW20 token balances for known contracts
+- Delegations breakdown with a visual chart
+- Staking rewards and unbonding timers
+- Transaction history (sent and received)
+- Bridge verification data (if applicable)
+
+### Validators
+
+Active, unbonding, and inactive validator lists:
+
+- Voting power and commission rates
+- 24-hour voting power changes
+- Uptime tracking
+- Delegation and reward management
+
+### Governance
+
+All governance proposals with filtering by status:
+
+- **Voting** -- Active proposals you can vote on
+- **Passed** -- Previously approved proposals
+- **Rejected** -- Proposals that did not pass
+
+### Smart Contracts
+
+Browse CosmWasm contracts:
+
+- Code IDs with upload hashes, creators, and permissions
+- Contracts deployed from each code ID
+- Search by contract address or creator
+- Transaction history per contract
+
+### Bridge
+
+Bridge-specific data:
+
+- Bridge module parameters (rate limits, enabled status)
+- Total minted supply
+- Mint records with pagination
+- Burn records with pagination
+- Verified wallet mappings
+
+### Network Parameters
+
+View all chain parameters in one place:
+
+- Minting, staking, governance, distribution, and slashing parameters
+- Chain ID and version info
+- Node version
+
+## Wallet Integration
+
+Connect your Keplr wallet directly in the explorer to:
+
+- View your portfolio (balances, staking, rewards)
+- Send tokens to any address
+- Delegate, redelegate, or undelegate from validators
+- Withdraw staking rewards
+- Vote on governance proposals
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Searching" icon="magnifying-glass" href="/explorer/searching">
+    Search by TX hash, address, block height, or contract
+  </Card>
+  <Card title="Bridge" icon="bridge" href="/bridge/overview">
+    Learn about the Ansem Bridge
+  </Card>
+</CardGroup>

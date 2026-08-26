@@ -1,0 +1,129 @@
+---
+title: 'Deposit (Solana to ansemchain)'
+description: 'Step-by-step guide to bridging CHANSE, ANSEM, and other assets from Solana to ansemchain'
+---
+
+# Deposit: Solana to ansemchain
+
+Depositing transfers a supported SPL token from Solana into ansemchain. Your tokens are locked in that asset's pool vault on Solana, and an equivalent amount of the matching native denom is minted on ansemchain.
+
+You choose which asset to bridge:
+
+- **CHANSE** deposits mint `uchanse` on ansemchain (the priority asset)
+- **ANSEM** deposits mint `uansem` on ansemchain (SPL mint `9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump`)
+
+Each asset has its own pool vault on Solana, so a CHANSE deposit and an ANSEM deposit are fully independent.
+
+## Prerequisites
+
+- A Solana wallet (Phantom, Solflare, etc.) holding the SPL you want to bridge (CHANSE or ANSEM)
+- An ansemchain wallet (Keplr, Leap, or Ansem Wallet)
+- **No SOL needed.** The bridge sponsors the Solana fee for you (see below).
+
+<Note>
+Both CHANSE and ANSEM are **SPL Token-2022** mints, which derive associated token accounts differently from legacy SPL. The app handles this automatically -- you do not need to do anything special.
+</Note>
+
+## No SOL required (gasless deposits)
+
+You can hold CHANSE or ANSEM in a wallet with **zero SOL** and still bridge in.
+
+### Why this works: signing is not paying
+
+On Solana these are two separate roles:
+
+- **Signing** authorizes part of a transaction (for example, "yes, move my ANSEM"). It is a local cryptographic operation with your key. It costs nothing and touches no SOL, you could sign offline.
+- The **fee payer** is one designated account on the transaction, and only *that* account's SOL is charged for the network fee.
+
+Normally you are both the signer and the fee payer, which is why you usually need SOL. But the roles are separable. For a deposit, the bridge sets the **relayer** as the fee payer. So:
+
+1. The app builds your deposit transaction with the relayer as fee payer.
+2. **Your wallet just signs it** (authorizing the move of your own tokens). No SOL leaves your wallet, the wallet only produces a signature, it does not broadcast or pay.
+3. The signed transaction is sent to the relayer, which adds its own signature and submits it, **paying the Solana fee and the one-time account rent itself**.
+
+Your wallet never held SOL and never spent any. It only signed.
+
+### Fallback
+
+The sponsor is rate-limited to prevent abuse. If it is briefly unavailable, the app falls back to a normal self-paid transaction, which then does need a little SOL. So an empty-of-SOL wallet works for the smooth path, and a tiny SOL balance is a harmless backup.
+
+## Step-by-Step Guide
+
+<Steps>
+
+### Connect your Solana wallet
+
+Click the **Connect Solana** button at the top of the Bridge page. Select your preferred Solana wallet from the dropdown. Your token balances appear once connected.
+
+### Choose the asset
+
+Select **CHANSE** or **ANSEM** in the asset picker. The UI shows your Solana balance and the per-transaction limit for that asset. Everything else on the page (vault, denom, limits) follows from this choice.
+
+### Register your ansemchain address (first time only)
+
+If this is your first time using the bridge, you need to link your Solana wallet to an ansemchain address. This registration is per wallet, not per asset -- once registered, it applies to every asset you bridge. You can either:
+
+- **Connect a wallet** -- Click "Connect Ansem Wallet" and select Keplr, Leap, or Ansem Wallet to auto-fill your address
+- **Enter manually** -- Type your ansemchain address (starts with `ansem1`, 39+ characters)
+
+Click **Register Address** to create the on-chain link (the `UserAccount` PDA). This is a one-time step per wallet pair; the relayer can sponsor the rent for it.
+
+<Note>
+Each Solana wallet can only be linked to one ansemchain address. You cannot change this mapping after registration.
+</Note>
+
+### Enter the deposit amount
+
+Type the amount you want to bridge. The UI shows your available Solana balance and the asset's `max_mint_per_tx` limit.
+
+Click **Max** to fill your full available balance (minus a small buffer for gas fees).
+
+### Confirm the transaction
+
+Click **Deposit** and approve the transaction in your Solana wallet. The UI will show:
+
+1. **Approving Transaction...** -- Waiting for your wallet signature
+2. **Confirming on Solana...** -- Waiting for Solana network confirmation
+
+### Track your deposit
+
+After confirmation, the **Deposit Status Tracker** appears with your Solana transaction signature. The relayer detects your deposit, waits for finality, and mints the matching denom on ansemchain.
+
+</Steps>
+
+## Processing Time
+
+| Step | Duration |
+|------|----------|
+| Solana confirmation | ~5 seconds |
+| Finality wait | ~15 seconds |
+| Relayer detection + mint | ~5-10 seconds |
+| **Total** | **~30 seconds** |
+
+## What Happens Under the Hood
+
+```
+1. Your SPL tokens transfer from your wallet → the pool_vault for that mint on Solana
+2. The bridge program emits a DepositEvent (mint, amount, depositor)
+3. The relayer detects the event and waits for Solana finality
+4. The relayer submits MsgMintFromBridge, minting the matching denom on ansemchain
+   (CHANSE mint → uchanse, ANSEM mint → uansem)
+5. The Solana deposit tx signature is used as the streamflow_lock_id, so the
+   same deposit can never be minted twice (replay guard)
+6. Minted tokens appear in your registered ansemchain address
+```
+
+<Warning>
+A deposit larger than the asset's `max_mint_per_tx` will be rejected. Check the current per-asset limits on [Fees & Limits](/bridge/fees-and-limits) and split large amounts into multiple deposits.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Withdraw" icon="arrow-up" href="/bridge/withdraw">
+    Bridge an asset back to Solana
+  </Card>
+  <Card title="Fees & Limits" icon="coins" href="/bridge/fees-and-limits">
+    Per-asset limits and gas requirements
+  </Card>
+</CardGroup>

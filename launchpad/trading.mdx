@@ -1,0 +1,43 @@
+---
+title: 'Trading on the Curve'
+description: 'Buying and selling tokens on the bonding curve'
+---
+
+# Trading on the Curve
+
+While a token is on its bonding curve, all trading happens against the curve itself. There is no order book and no counterparty: the curve is an automated market maker with a deterministic price.
+
+## Buying
+
+Send CHANSE to the launchpad's `buy` method and receive tokens at the current curve price. Every buy moves the price up; the curve uses constant-product math over virtual reserves, so the price path is fully predictable from the amount raised.
+
+- **Fee:** 0.5% of the CHANSE you send
+- **Slippage protection:** every buy carries a `min_tokens_out`; if the curve moved past your tolerance, the transaction reverts
+- **Max wallet:** if a buy would push your holdings above **2.25% of supply**, the contract rejects it
+
+## Selling
+
+Selling sends tokens back to the curve for CHANSE at the current price.
+
+- **Fee:** 3.5% of the CHANSE you receive
+- Sells move the price down the same deterministic path
+
+The buy/sell fee asymmetry (0.5% in, 3.5% out) is deliberate: quick flips pay, conviction doesn't.
+
+## Where fees go
+
+Every fee stays with the token. On the curve, fees accrue directly to the curve's CHANSE reserves; at graduation those reserves become the locked AMM pool. After graduation, AMM swap fees accrue to the pool itself. There is no creator cut and no protocol cut, all of it deepens the token's own liquidity.
+
+## Price and market cap
+
+The curve quotes price in CHANSE per token. USD values shown in the apps come from the on-chain oracle, which prices CHANSE from its Solana market. Market cap = spot price x the fixed 100,000 token supply.
+
+## Checking progress
+
+Any token's state is queryable directly from the contract:
+
+```json wrap
+{ "progress": { "token_address": "<cw20_token_address>" } }
+```
+
+Returns `ansem_raised`, `graduation_threshold` (the dynamic target derived from the oracle, ≈ 25,700 CHANSE with default parameters), `progress_percent`, and `graduated`.

@@ -1,0 +1,71 @@
+---
+title: 'Key Management'
+description: 'Create, import, and list wallets with the ansem CLI'
+---
+
+# Key Management
+
+`ansem keys` manages your wallets. Each wallet is stored as an encrypted JSON keystore (scrypt + AES-256-GCM) at `~/.ansem/keystore/`; your password never leaves your machine.
+
+| Command | What it does |
+|---------|--------------|
+| `ansem keys list` | List saved wallets (label + address) |
+| `ansem keys add [label]` | Create a new wallet and print its recovery phrase |
+| `ansem keys import [label]` | Import an existing 12 or 24-word mnemonic |
+
+`label` is optional - it defaults to the wallet's address. Use a label so you can refer to the wallet by name (e.g. `--from main`).
+
+## Create a wallet
+
+```bash wrap
+ansem keys add main
+```
+
+You'll be prompted for a password, then shown the address and a 24-word recovery phrase:
+
+```
+created main
+address:  ansem1l6cmvpndal8g90ymc8nexww8rdk9tlhlq8h83r
+keystore: ~/.ansem/keystore/main.json
+
+RECOVERY PHRASE (write this down - it is shown only once):
+  legal winner thank year wave sausage worth …
+```
+
+<Warning>
+The recovery phrase is shown **once**. Anyone with it controls the wallet. Write it down offline; never paste it into a website or share it.
+</Warning>
+
+## Import a wallet
+
+```bash wrap
+ansem keys import main
+# prompts for the mnemonic, then a password to encrypt it
+```
+
+12 and 24-word mnemonics are both accepted.
+
+## List wallets
+
+```bash wrap
+ansem keys list
+```
+
+```
+main    ansem1l6cmvpndal8g90ymc8nexww8rdk9tlhlq8h83r
+trading ansem1zcuz25n78tkvmgqfn9qx9w7gz2ge0tgjyhptgy
+```
+
+Add `--json` for structured output.
+
+## Addresses
+
+ansemchain addresses use the `ansem` prefix and the standard `118` coin type, so the same recovery phrase also works in compatible wallets like Keplr.
+
+## Scripting
+
+For automation, supply the password (and mnemonic, for import) via environment variables so nothing blocks on a prompt - see [Configuration](/cli/configuration).
+
+<Card title="Send CHANSE" icon="paper-plane-top" href="/cli/transactions">
+  Use a wallet to sign and broadcast a transfer
+</Card>

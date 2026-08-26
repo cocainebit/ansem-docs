@@ -1,0 +1,28 @@
+---
+title: 'Your Portfolio'
+description: 'Balances, launchpad tokens, and USD values across both chains'
+---
+
+# Your Portfolio
+
+The home screen shows everything you hold, on both chains, in one list with live USD values.
+
+## ansemchain side
+
+- **CHANSE** - your native gas and staking balance, priced from the on-chain oracle
+- **ANSEM** - the bridged voucher token (1:1 with the pump.fun SPL), tradeable and bridgeable but not used for gas
+- **Launchpad tokens** - every curve token you hold appears automatically with its name, ticker, and image. The wallet discovers them straight from the launchpad contract; there is nothing to add manually.
+
+## Solana side
+
+- **SOL** and your SPL tokens, including the official ANSEM and CHANSE SPLs
+- Token names, icons, and prices resolve from the standard Solana token lists; CHANSE's USD price comes from the same oracle the chain uses, so both sides of your portfolio agree
+
+## Sending and receiving
+
+Each side has its own send flow and address format:
+
+- ansemchain addresses start with `ansem1…`
+- Solana addresses are base58
+
+Always match the chain to the address. To move CHANSE or ANSEM *between* the chains, use the built-in [bridge](/wallet/bridging), not a plain send.

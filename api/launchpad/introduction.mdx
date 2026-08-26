@@ -1,0 +1,79 @@
+---
+title: 'Launchpad API Introduction'
+description: 'Pre-indexed REST API for launchpad tokens, AMM pools, trades, and price data'
+---
+
+# Launchpad API
+
+The Launchpad API is a backend service that indexes blockchain events from the Launchpad and AMM contracts into a TimescaleDB database. It provides fast, pre-formatted REST endpoints and real-time Server-Sent Events (SSE) for frontends and bots.
+
+## Base URL
+
+```
+https://api.ansemchain.fun
+```
+
+## Why Use This Instead of Chain API?
+
+The Chain API (port 1317) gives you raw blockchain state. The Launchpad API gives you **pre-indexed, enriched data** that's ready to display:
+
+| Need | Chain API | Launchpad API |
+|------|-----------|---------------|
+| List all tokens with prices | Query each contract individually | `GET /api/tokens` - one call |
+| Trade history for a token | Search events, parse wasm logs | `GET /api/trades/recent?token_address=...` |
+| OHLCV candlestick charts | Not available | `GET /api/candles/:address` |
+| Real-time trade feed | WebSocket + event parsing | `GET /api/sse/feed` - ready-to-use events |
+| Token 24h volume | Aggregate from raw trades | Pre-computed in token response |
+
+## Authentication
+
+All endpoints are public. No API key required.
+
+## Rate Limits
+
+| Window | Max Requests |
+|--------|-------------|
+| 60 seconds | 100 per IP |
+
+Rate limit headers are included in responses:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1708300000
+```
+
+## Health Check
+
+```bash wrap
+curl https://api.ansemchain.fun/api/health
+```
+
+```json wrap
+{
+  "status": "ok",
+  "timestamp": "2026-02-19T10:00:00.000Z"
+}
+```
+
+## Available Endpoints
+
+| Section | Endpoints |
+|---------|-----------|
+| [List Tokens](/api/launchpad/list-tokens) | All indexed tokens with metadata, prices, and 24h stats |
+| [Token Detail](/api/launchpad/token-detail) | Single token by contract address |
+| [Trades](/api/launchpad/trades) | Recent trades, filterable by token |
+| [Candles](/api/launchpad/candles) | OHLCV candlestick data (1m, 5m, 1h, 1d) |
+| [SSE Feed](/api/launchpad/sse) | Real-time trade, launch, and graduation events |
+| [Wallet](/api/launchpad/wallet) | Balance, token holdings, transaction history, and broadcast |
+
+## Data Sources
+
+The API indexes events from two on-chain contracts:
+
+| Source | Contract | Events Indexed |
+|--------|----------|---------------|
+| Launchpad | Bonding curve contract | `token_created`, `buy`, `sell`, `buy_and_graduate`, `graduate` |
+| AMM | Constant-product DEX | `swap` (both directions) |
+
+The indexer polls the chain every ~5 seconds and writes all events atomically to the database. OHLCV candles are computed automatically by TimescaleDB continuous aggregates at 1-minute, 5-minute, 1-hour, and 1-day intervals.

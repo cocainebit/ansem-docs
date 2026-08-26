@@ -1,0 +1,55 @@
+---
+title: 'Creating a Token'
+description: 'Launch a token on the CHANSE bonding curve'
+---
+
+# Creating a Token
+
+Anyone can create a token. There is no allowlist, no application, and no vote. Creation is permissionless by design.
+
+## What you need
+
+- A wallet with at least **80,000 CHANSE** (the creation fee) plus a little extra for gas
+- A name (max 32 characters), a ticker (uppercase letters and numbers, max 10), and optionally an image, description, and social links
+
+## Cost
+
+The creation fee is **80,000 CHANSE**, paid once at creation. It exists to make spam launches expensive and keep the token feed meaningful.
+
+## From the website
+
+<Steps>
+
+### Open the create page
+
+Go to the launchpad and press **create coin**.
+
+### Fill in the token details
+
+Name, ticker, image (PNG, JPG, GIF, WebP, or SVG up to 2MB), description, and any community links. The launch receipt on the right shows the creation fee and its current USD value before you sign anything.
+
+### Connect your wallet and confirm
+
+Sign the creation transaction. Your coin appears in the market within seconds of the block confirming.
+
+</Steps>
+
+## What happens on chain
+
+A single transaction:
+
+1. Instantiates a CW20 token with a fixed supply of 100,000 tokens (6 decimals), all minted to the launchpad contract. **Nobody can mint more, including the creator.**
+2. Opens a bonding curve; price rises deterministically as people buy, up to graduation at the target market cap.
+3. Reserves 20.69% of the supply (20,690 tokens) for the future AMM pool.
+
+## Choosing the quote denomination
+
+By default a launch is denominated in **CHANSE** (`uchanse`): buyers pay CHANSE on the curve, the raise is in CHANSE, and the graduated pool is quoted in CHANSE. A launch can instead be denominated in **ANSEM** (`uansem`, the bridged voucher), in which case the curve and pool use ANSEM as the quote side. ANSEM-denominated launches are supported but skip the presale and USD-oracle features, which are only wired for CHANSE. ANSEM is not a gas token, so gas is still paid in CHANSE regardless of the launch denom.
+
+## Naming rules
+
+Ticker reuse is rate-limited to stop vampire launches: a recently used symbol goes through a cooldown before it can be used again.
+
+## Creator economics
+
+There is **no creator fee cut**: all trading fees flow into the token's liquidity, not to you, both on the curve and after graduation. There is no creator pre-allocation either, you start with zero tokens and buy on the curve like everyone else, subject to the same 2.25% max wallet. A launch gives you no insider edge, only a fair start alongside everyone.

@@ -1,0 +1,133 @@
+---
+title: 'Network'
+description: 'Query node info, syncing status, and chain health'
+---
+
+# Network
+
+Check the health and status of ansemchain nodes.
+
+## Get Node Info
+
+Returns node software version, chain ID, and protocol information.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/node_info
+```
+
+<Accordion title="Response">
+```json wrap
+{
+  "default_node_info": {
+    "protocol_version": {
+      "p2p": "8",
+      "block": "11",
+      "app": "0"
+    },
+    "default_node_id": "abc123def456...",
+    "network": "ansem-1",
+    "version": "0.38.0",
+    "moniker": "validator-1"
+  },
+  "application_version": {
+    "name": "ansem",
+    "app_name": "ansemd",
+    "version": "5.0.0",
+    "cosmos_sdk_version": "v0.53.4",
+    "build_tags": "",
+    "go_version": "go1.24.1"
+  }
+}
+```
+</Accordion>
+
+### Key Fields
+
+| Field | Description |
+|-------|-------------|
+| `default_node_info.network` | Chain ID (`ansem-1` for mainnet) |
+| `default_node_info.version` | Consensus version |
+| `default_node_info.moniker` | Node's human-readable name |
+| `application_version.version` | `ansemd` binary version |
+| `application_version.cosmos_sdk_version` | Runtime version |
+
+## Get Syncing Status
+
+Check if the node is currently catching up to the latest block.
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/syncing
+```
+
+```json wrap
+{
+  "syncing": false
+}
+```
+
+| Value | Meaning |
+|-------|---------|
+| `false` | Node is fully synced and up to date |
+| `true` | Node is still catching up - queries may return stale data |
+
+<Warning>
+If `syncing` is `true`, block and transaction queries may be behind the actual chain tip. Wait for sync to complete before relying on query results.
+</Warning>
+
+## Health Check
+
+The simplest way to verify the node is reachable. Available on the Chain RPC port:
+
+```bash wrap
+curl https://rpc.ansemchain.fun/health
+```
+
+```json wrap
+{
+  "jsonrpc": "2.0",
+  "id": -1,
+  "result": {}
+}
+```
+
+An empty result with no error means the node is healthy.
+
+## Get Latest Block Height
+
+A quick way to check how far along the chain is:
+
+```bash wrap
+curl -s https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/blocks/latest \
+  | jq '.block.header.height'
+```
+
+## Chain Parameters
+
+### Mint Parameters (Zero Inflation)
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/mint/v1beta1/params
+```
+
+```json wrap
+{
+  "params": {
+    "mint_denom": "uchanse",
+    "inflation_rate_change": "0",
+    "inflation_max": "0",
+    "inflation_min": "0",
+    "goal_bonded": "0.670000000000000000",
+    "blocks_per_year": "6311520"
+  }
+}
+```
+
+All inflation parameters are set to zero - no new tokens are ever minted on ansemchain.
+
+### Governance Parameters
+
+```bash wrap
+curl https://rest.ansemchain.fun/cosmos/gov/v1/params/voting
+```
+
+Returns the voting period, quorum, and threshold for governance proposals.

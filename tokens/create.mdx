@@ -1,0 +1,250 @@
+---
+title: 'Create Token'
+description: 'Deploy a new CW20 fungible token'
+---
+
+# Create Token
+
+Deploy a new CW20 token on ansemchain with the `ansem token create` command.
+
+## Setup
+
+Before creating tokens, ensure the CW20 base contract is deployed.
+
+### Deploy CW20 Base Contract
+
+```bash wrap
+# Run the deployment script
+./scripts/deploy-cw20.sh
+```
+
+<Accordion title="Expected Output">
+```
+Downloading CW20 base contract v2.0.0...
+Deploying to ansem-1...
+
+Transaction hash: ABC123...
+Code ID: 1
+
+Success! Configure ansem CLI:
+  ansem config set cw20-code-id 1
+```
+</Accordion>
+
+### Configure Code ID
+
+```bash wrap
+ansem config set cw20-code-id 1
+```
+
+Verify:
+```bash wrap
+ansem config get cw20-code-id
+# 1
+```
+
+## Create a Token
+
+```bash wrap
+ansem token create \
+  --name "My Token" \
+  --symbol "MTK" \
+  --decimals 6 \
+  --initial-supply 1000000000000 \
+  --from mykey
+```
+
+### Required Flags
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--name` | Token name | "My Token" |
+| `--symbol` | Trading symbol (3-12 chars) | "MTK" |
+| `--decimals` | Decimal places (0-18) | 6 |
+| `--from` | Signing key | mykey |
+
+### Optional Flags
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--initial-supply` | Starting supply | 0 |
+| `--minter` | Minter address | Creator |
+| `--cap` | Maximum supply | Unlimited |
+| `--dry-run` | Simulate only | false |
+
+## Examples
+
+### Basic Token
+
+```bash wrap
+ansem token create \
+  --name "My Token" \
+  --symbol "MTK" \
+  --decimals 6 \
+  --from mykey
+```
+
+Creates a token with no initial supply. You'll need to mint tokens afterward.
+
+### Token with Initial Supply
+
+```bash wrap
+ansem token create \
+  --name "Reward Token" \
+  --symbol "RWRD" \
+  --decimals 6 \
+  --initial-supply 1000000000000 \
+  --from mykey
+```
+
+Creates 1,000,000 tokens (with 6 decimals) sent to the creator.
+
+### Fixed Supply Token
+
+```bash wrap
+ansem token create \
+  --name "Fixed Token" \
+  --symbol "FIX" \
+  --decimals 6 \
+  --initial-supply 1000000000000 \
+  --cap 1000000000000 \
+  --from mykey
+```
+
+Creates a token with fixed 1M supply (cap equals initial supply).
+
+### Token with Different Minter
+
+```bash wrap
+ansem token create \
+  --name "DAO Token" \
+  --symbol "DAO" \
+  --decimals 6 \
+  --minter ansem1daocontract... \
+  --from mykey
+```
+
+Sets a DAO contract as the minter instead of the creator.
+
+## Dry Run
+
+Simulate token creation without broadcasting:
+
+```bash wrap
+ansem token create \
+  --name "Test Token" \
+  --symbol "TEST" \
+  --decimals 6 \
+  --from mykey \
+  --dry-run
+```
+
+Output:
+```
+Dry run mode - transaction not broadcast
+
+Estimated gas: 250,000
+Estimated fee: 2,500 uchanse
+
+Token Details:
+  Name: Test Token
+  Symbol: TEST
+  Decimals: 6
+  Initial Supply: 0
+  Minter: ansem1youraddress...
+```
+
+## Output
+
+Successful creation returns:
+
+```
+Token Created Successfully!
+
+Contract: ansem1tokencontract123...
+Name:     My Token
+Symbol:   MTK
+Decimals: 6
+TxHash:   ABC123DEF456...
+Gas Used: 234567
+Block:    12345
+```
+
+<Note>
+Save the contract address! You'll need it for all future operations (mint, transfer, etc.).
+</Note>
+
+## Track Your Token
+
+Add the token to your configuration for balance queries:
+
+```bash wrap
+# Add to tracked tokens
+ansem config set cw20-tokens ansem1tokencontract123...
+
+# Now balance queries include this token
+ansem balance --all --key mykey
+```
+
+## Decimals Guide
+
+The `decimals` field determines the smallest unit:
+
+| Decimals | 1 Token = | Use Case |
+|----------|-----------|----------|
+| 0 | 1 | NFT-like, indivisible |
+| 6 | 1,000,000 | Standard (like uchanse) |
+| 8 | 100,000,000 | Bitcoin-style |
+| 18 | 10^18 | Ethereum-style |
+
+<Tip>
+Use 6 decimals to match the native `uchanse` denomination.
+</Tip>
+
+## Error Handling
+
+The CLI provides user-friendly error messages:
+
+| Error | Meaning | Solution |
+|-------|---------|----------|
+| "cw20-code-id not configured" | Missing code ID | Run `ansem config set cw20-code-id 1` |
+| "insufficient funds" | Not enough uchanse | Fund your account |
+| "invalid symbol" | Symbol too long/short | Use 3-12 characters |
+
+## Under the Hood
+
+`ansem token create` executes a `MsgInstantiateContract`:
+
+```json wrap
+{
+  "code_id": 1,
+  "label": "MTK Token",
+  "msg": {
+    "name": "My Token",
+    "symbol": "MTK",
+    "decimals": 6,
+    "initial_balances": [
+      {
+        "address": "ansem1creator...",
+        "amount": "1000000000000"
+      }
+    ],
+    "mint": {
+      "minter": "ansem1creator...",
+      "cap": null
+    }
+  },
+  "funds": []
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Mint Tokens" icon="coins" href="/tokens/mint">
+    Create additional supply
+  </Card>
+  <Card title="Transfer Tokens" icon="arrow-right" href="/tokens/transfer">
+    Send tokens to others
+  </Card>
+</CardGroup>

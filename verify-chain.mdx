@@ -1,0 +1,84 @@
+---
+title: 'Verify the Chain'
+description: 'Prove for yourself that CHANSE is a real blockchain, not a token pretending to be one'
+---
+
+# Verify the Chain
+
+A token is a number sitting in someone else's ledger. A blockchain is a live network of independent machines producing and signing their own blocks.
+
+CHANSE is the second one, and you don't have to take our word for it. Every command on this page runs against the live CHANSE network from your own terminal. Nothing here is a claim about CHANSE; it's something you can watch happen on your own screen.
+
+<Info>
+The only tools you need are `curl` and `python3`, which ship with macOS and Linux. The public endpoints are `https://rpc.ansemchain.fun` and `https://rest.ansemchain.fun`.
+</Info>
+
+## The 10-second proof: watch CHANSE make blocks
+
+This is the one that settles it. A token cannot produce blocks, because it doesn't have any. CHANSE does, and you can watch them appear:
+
+```bash wrap
+while true; do curl -s https://rpc.ansemchain.fun/status \
+  | grep -o '"latest_block_height":"[0-9]*"'; sleep 2; done
+```
+
+The number climbs every few seconds. That is CHANSE's network reaching agreement and committing a brand-new block, live, while you watch. Press `Ctrl+C` to stop.
+
+Nothing that lives on another chain can show you this. Only a blockchain has blocks of its own.
+
+## See its identity
+
+```bash wrap
+curl -s https://rpc.ansemchain.fun/status | python3 -m json.tool
+```
+
+You'll see `"network": "ansem-1"`, CHANSE's own network name, along with the software it runs and the current block height. This is a distinct network with its own identity, not an entry inside anyone else's.
+
+## See who secures it
+
+CHANSE is run by independent validator nodes that must agree before any block becomes final.
+
+```bash wrap
+curl -s https://rpc.ansemchain.fun/validators | python3 -m json.tool
+```
+
+You'll see the validator set and each one's voting power. These are the machines doing the work of keeping the network honest.
+
+## See the cryptography
+
+This is the mathematical proof. Every block is signed by the validators that agreed on it:
+
+```bash wrap
+curl -s https://rpc.ansemchain.fun/commit | python3 -m json.tool
+```
+
+Look at the `signatures` array. Each entry is a real cryptographic signature from a validator, with its address and the exact moment it signed. A block is only final once enough validators have signed it. This isn't marketing, it's signatures you can verify.
+
+## The ultimate proof: rebuild the chain yourself
+
+For the truly skeptical, there is a proof that cannot be faked. Download CHANSE's genesis file, the network's birth certificate:
+
+```bash wrap
+curl -s https://rpc.ansemchain.fun/genesis | python3 -m json.tool | head -40
+```
+
+You'll see the `chain_id`, the genesis time, and the network's founding state.
+
+Now the part nobody can fake: run your own CHANSE node, give it nothing but this genesis file and the network address, and it will independently re-download and cryptographically re-verify **every block from the beginning to now**, checking every validator signature along the way. If the entire history reproduces on your machine from scratch, you haven't been told the chain is real, you've rebuilt it yourself.
+
+A pretend chain falls apart the moment someone tries to sync it. A real one reproduces perfectly, every time, on every machine.
+
+## No terminal? Use the explorer
+
+The explorer is the same proof without the command line. Browse the blocks, watch new ones arrive, and inspect the validators and their signatures, all from your browser. See [Explorer](/explorer/overview).
+
+## The short version
+
+When someone says CHANSE is "just a token pretending," the reply isn't an argument. It's a command:
+
+```bash wrap
+while true; do curl -s https://rpc.ansemchain.fun/status \
+  | grep -o '"latest_block_height":"[0-9]*"'; sleep 2; done
+```
+
+Watch the number climb. A token can't do that. A blockchain can.

@@ -1,0 +1,18 @@
+---
+title: 'Vesting'
+description: 'Time-locked token release schedules.'
+---
+
+The vesting contract holds tokens and releases them gradually over time according to a schedule, used for allocations that should not be immediately liquid (team, treasury, partners).
+
+## What it does
+
+- A schedule defines a start, a duration, and (optionally) a cliff before anything unlocks.
+- The amount claimable grows linearly with elapsed time; the beneficiary claims whatever has vested so far whenever they like.
+- Already-vested tokens cannot be clawed back.
+
+This contract ships with `tests.rs` covering the unlock math, included below so you can verify the schedule behaves as described.
+
+## Interface
+
+The schedule setup, claim, and query messages are in `msg.rs`; the release calculation is in `contract.rs`.

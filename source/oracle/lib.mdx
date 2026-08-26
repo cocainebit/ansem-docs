@@ -1,0 +1,17 @@
+---
+title: 'lib.rs'
+description: 'Module wiring: declares the contract''s modules and re-exports.'
+---
+
+Module wiring: declares the contract's modules and re-exports.
+
+<Info>Live source from `contracts/oracle/src/lib.rs` (7 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+pub mod contract;
+pub mod error;
+pub mod msg;
+pub mod state;
+
+pub use crate::error::ContractError;
+```

@@ -1,0 +1,262 @@
+---
+title: 'Test Accounts'
+description: 'Pre-funded accounts for local development'
+---
+
+# Test Accounts
+
+Localnet provides pre-funded test accounts for immediate use.
+
+## Available Accounts
+
+| Name | Address | Initial Balance |
+|------|---------|-----------------|
+| `alice` | ansem1alice... | 1,000,000 CHANSE (1,000,000,000,000 uchanse) |
+| `bob` | ansem1bob... | 500,000 CHANSE (500,000,000,000 uchanse) |
+
+These accounts are automatically available when localnet is running.
+
+## Using Test Accounts
+
+### Check Balance
+
+```bash wrap
+ansem balance --key alice
+```
+
+Output:
+```
+Balances for alice (ansem1alice...)
+
+DENOM    AMOUNT
+uchanse     1,000,000,000,000  (1,000,000 CHANSE)
+```
+
+### Send Tokens
+
+```bash wrap
+# Alice sends to Bob
+ansem tx send ansem1bob... 100000uchanse --from alice
+```
+
+### Deploy Contracts
+
+```bash wrap
+ansem program deploy artifacts/my_contract.wasm --from alice --label "My Contract"
+```
+
+### Execute Contracts
+
+```bash wrap
+ansem program execute ansem1contract... '{"increment":{}}' --from bob
+```
+
+## Account Details
+
+### Alice
+
+Primary test account, typically used for deployments.
+
+```bash wrap
+# View full account info
+ansem keys show alice
+
+# Get address
+ansem keys show alice --address
+```
+
+### Bob
+
+Secondary test account, useful for testing transfers.
+
+```bash wrap
+ansem keys show bob
+```
+
+## Mnemonics
+
+Test accounts use deterministic mnemonics for reproducibility. Query the actual mnemonics from your localnet keyring:
+
+<Warning>
+These mnemonics are public and for testing only. NEVER use them for real funds.
+</Warning>
+
+```bash wrap
+# Export a test account mnemonic
+ansem keys export alice --unsafe --unarmored-hex
+```
+
+## Creating Additional Accounts
+
+### Generate New Account
+
+```bash wrap
+ansem keys generate dev-test
+```
+
+### Fund from Alice
+
+```bash wrap
+ansem tx send $(ansem keys show dev-test --address) 100000uchanse --from alice
+```
+
+### Import Existing
+
+```bash wrap
+ansem keys import my-test --mnemonic "your twelve word mnemonic phrase here"
+```
+
+## Multi-Account Workflows
+
+### Token Transfer
+
+```bash wrap
+# Alice → Bob
+ansem tx send $(ansem keys show bob --address) 50000uchanse --from alice
+```
+
+### Contract Ownership Transfer
+
+```bash wrap
+# Alice deploys
+CONTRACT=$(ansem program deploy artifacts/my_contract.wasm --from alice --label "Shared Contract" | grep "Contract:" | awk '{print $2}')
+
+# Bob executes
+ansem program execute $CONTRACT '{"increment":{}}' --from bob
+
+# Query result
+ansem program query $CONTRACT '{"get_count":{}}'
+```
+
+## Checking Balances
+
+### Single Account
+
+```bash wrap
+ansem balance --key alice
+```
+
+### All Test Accounts
+
+```bash wrap
+for key in alice bob; do
+  echo "=== $key ==="
+  ansem balance --key $key
+done
+```
+
+### JSON Output
+
+```bash wrap
+ansem balance --key alice --output json
+```
+
+```json wrap
+{
+  "address": "ansem1alice...",
+  "balances": [
+    {"denom": "uchanse", "amount": "1000000000000"}
+  ]
+}
+```
+
+## Reset Account Balances
+
+To restore accounts to initial state:
+
+```bash wrap
+# Reset entire localnet
+ansem localnet stop --clean
+ansem localnet start
+```
+
+Accounts return to their initial balances (alice: 1,000,000 CHANSE, bob: 500,000 CHANSE).
+
+## Scripting with Test Accounts
+
+### Bash Script
+
+```bash wrap
+#!/bin/bash
+
+# Deploy and test with multiple accounts
+CONTRACT=$(ansem program deploy artifacts/counter.wasm \
+  --from alice \
+  --label "Counter" \
+  --msg '{"count":0}' | grep "Contract:" | awk '{print $2}')
+
+echo "Contract: $CONTRACT"
+
+# Alice increments
+ansem program execute $CONTRACT '{"increment":{}}' --from alice
+
+# Bob increments
+ansem program execute $CONTRACT '{"increment":{}}' --from bob
+
+# Check count
+ansem program query $CONTRACT '{"get_count":{}}'
+# Expected: {"count": 2}
+```
+
+### Test Script
+
+```bash wrap
+#!/bin/bash
+set -e
+
+echo "Testing token transfer..."
+
+# Get initial balances
+ALICE_BEFORE=$(ansem balance --key alice --output json | jq -r '.balances[0].amount')
+BOB_BEFORE=$(ansem balance --key bob --output json | jq -r '.balances[0].amount')
+
+# Transfer
+ansem tx send $(ansem keys show bob --address) 1000uchanse --from alice
+
+# Get final balances
+ALICE_AFTER=$(ansem balance --key alice --output json | jq -r '.balances[0].amount')
+BOB_AFTER=$(ansem balance --key bob --output json | jq -r '.balances[0].amount')
+
+# Verify
+if [ "$BOB_AFTER" -gt "$BOB_BEFORE" ]; then
+  echo "✓ Transfer successful"
+else
+  echo "✗ Transfer failed"
+  exit 1
+fi
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Account not found">
+    Test accounts are only available when localnet is running:
+    ```bash
+    ansem localnet status
+    ansem localnet start  # if not running
+    ```
+  </Accordion>
+
+  <Accordion title="Insufficient funds">
+    Account may have spent its balance. Reset localnet:
+    ```bash
+    ansem localnet stop --clean
+    ansem localnet start
+    ```
+  </Accordion>
+
+  <Accordion title="Wrong keyring">
+    Localnet uses the `test` keyring backend:
+    ```bash
+    ansem keys list --keyring-backend test
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+1. **Use alice for deployments** - Keep bob for testing interactions
+2. **Reset often** - Start fresh to avoid state confusion
+3. **Script everything** - Make tests reproducible
+4. **Check balances** - Verify before complex operations
+5. **Use JSON output** - Easier parsing in scripts

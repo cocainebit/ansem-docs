@@ -1,0 +1,88 @@
+---
+title: 'state.rs'
+description: 'Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract''s state between calls.'
+---
+
+Persistent storage: the structs and storage keys (`Item`/`Map`) that hold the contract's state between calls.
+
+<Info>Live source from `contracts/proposals/src/state.rs` (78 lines). Generated from the deployed contract code.</Info>
+
+```rust wrap
+use cosmwasm_std::Addr;
+use cw_storage_plus::{Item, Map};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+    pub admin: Addr,
+    pub launchpad_contract: Addr,
+    pub twitter_track_threshold: u32,
+    pub rename_approval_percent: u32,
+    pub rename_window_seconds: u64,
+    pub general_voting_window_seconds: u64,
+    pub general_min_balance_uchanse: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalType {
+    TwitterTrack {
+        handle: String,
+    },
+    TokenRename {
+        token_address: String,
+        new_name: String,
+        new_symbol: String,
+        new_image: String,
+    },
+    General {
+        title: String,
+        description: String,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalStatus {
+    Active,
+    Approved,
+    Rejected,
+    Expired,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Proposal {
+    pub id: u64,
+    pub proposer: Addr,
+    pub proposal_type: ProposalType,
+    pub status: ProposalStatus,
+    pub yes_votes: u32,
+    pub no_votes: u32,
+    pub created_at: u64,
+    pub created_height: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DisplayOverride {
+    pub name: String,
+    pub symbol: String,
+    pub image: String,
+    pub set_by_proposal: u64,
+    pub set_at: u64,
+}
+
+pub const CONFIG: Item<Config> = Item::new("config");
+pub const NEXT_PROPOSAL_ID: Item<u64> = Item::new("next_proposal_id");
+
+pub const PROPOSALS: Map<u64, Proposal> = Map::new("proposals");
+// (proposal_id, voter_address) -> yes/no
+pub const VOTES: Map<(u64, &str), bool> = Map::new("votes");
+
+// token_address -> display metadata override
+pub const DISPLAY_REGISTRY: Map<&str, DisplayOverride> = Map::new("display_registry");
+// token_address -> active rename proposal id (only one allowed per token)
+pub const ACTIVE_RENAME: Map<&str, u64> = Map::new("active_rename");
+// twitter handle -> approving proposal id
+pub const TRACKED_HANDLES: Map<&str, u64> = Map::new("tracked_handles");
+```

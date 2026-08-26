@@ -1,0 +1,26 @@
+---
+title: 'Telegram Bots'
+description: 'Trade, bridge, and vote without leaving Telegram'
+---
+
+# Telegram Bots
+
+Three official bots cover the core Ansem actions from chat. Each bot manages a wallet for you (custodial, encrypted at rest) so actions are one tap; you can export your keys at any time with `/export`.
+
+| Bot | What it does |
+|---|---|
+| **@chansetradebot** | Trade launchpad tokens: buy, sell, limit orders, positions, paste-a-CA-to-trade, referrals, and community proposals |
+| **@chansebridgebot** | Bridge CHANSE and ANSEM between Solana and ansemchain from chat |
+| **@chanseproposalbot** | Browse, vote on, and submit community proposals, including multi-option ballots |
+
+## Getting started
+
+Send `/start` to any bot. It creates a wallet for you (or import your own with `/import`) and shows the main menu. Fund the wallet by sending CHANSE to the address it gives you.
+
+## Custody model
+
+Bot wallets are convenience wallets: keys are encrypted on the server, and `/export` hands you the seed phrase whenever you want to move to self-custody. For meaningful balances, prefer the [browser extension](/wallet/overview) and keep bot wallets topped up only with what you actively trade.
+
+## Always in sync with the protocol
+
+The bots resolve contract addresses from the same on-chain registry as the wallet extension, so protocol upgrades don't interrupt them.

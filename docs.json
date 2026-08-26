@@ -1,0 +1,268 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "ansemchain",
+  "logo": {
+    "light": "/logo/light.png",
+    "dark": "/logo/dark.png"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#1f9e40",
+    "light": "#3ddc5a",
+    "dark": "#157a32"
+  },
+  "appearance": {
+    "default": "light"
+  },
+  "fonts": {
+    "heading": {
+      "family": "Space Grotesk",
+      "weight": 700
+    },
+    "body": {
+      "family": "Inter",
+      "weight": 400
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "X",
+        "href": "https://x.com/ansemchainfun"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "/quickstart"
+    }
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "introduction",
+          "verify-chain",
+          "quickstart",
+          "architecture"
+        ]
+      },
+      {
+        "group": "Wallet",
+        "pages": [
+          "wallet/overview",
+          "wallet/install",
+          "wallet/portfolio",
+          "wallet/bridging",
+          "wallet/security"
+        ]
+      },
+      {
+        "group": "Chain",
+        "pages": [
+          "chain/overview",
+          "chain/parameters",
+          "chain/accounts"
+        ]
+      },
+      {
+        "group": "Launchpad",
+        "pages": [
+          "launchpad/overview",
+          "launchpad/create-token",
+          "launchpad/trading",
+          "launchpad/graduation"
+        ]
+      },
+      {
+        "group": "AMM",
+        "pages": [
+          "amm/overview",
+          "amm/swapping",
+          "amm/liquidity"
+        ]
+      },
+      {
+        "group": "Bridge",
+        "pages": [
+          "bridge/overview",
+          "bridge/deposit",
+          "bridge/withdraw",
+          "bridge/architecture",
+          "bridge/fees-and-limits",
+          "bridge/faq"
+        ]
+      },
+      {
+        "group": "Telegram Bots",
+        "pages": [
+          "telegram/overview",
+          "telegram/commands"
+        ]
+      },
+      {
+        "group": "Explorer",
+        "pages": [
+          "explorer/overview",
+          "explorer/searching"
+        ]
+      },
+      {
+        "group": "Proposals",
+        "pages": [
+          "proposals/overview",
+          "proposals/submit",
+          "proposals/voting"
+        ]
+      },
+      {
+        "group": "Developer Tools",
+        "pages": [
+          "cli/installation",
+          "cli/wallet",
+          "cli/configuration",
+          "cli/keys",
+          "cli/balance",
+          "cli/transactions",
+          "sdk/overview",
+          "sdk/queries",
+          "sdk/transactions",
+          "sdk/wallets"
+        ]
+      },
+      {
+        "group": "Token Operations",
+        "pages": [
+          "tokens/overview",
+          "tokens/create",
+          "tokens/mint",
+          "tokens/transfer",
+          "tokens/burn",
+          "tokens/query"
+        ]
+      },
+      {
+        "group": "Smart Contracts",
+        "pages": [
+          "contracts/overview",
+          "contracts/scaffolding",
+          "contracts/building",
+          "contracts/deploying",
+          "contracts/executing",
+          "contracts/querying",
+          "contracts/discovery"
+        ]
+      },
+      {
+        "group": "Local Development",
+        "pages": [
+          "localnet/overview",
+          "localnet/start",
+          "localnet/accounts"
+        ]
+      },
+      {
+        "group": "Chain API",
+        "pages": [
+          "api/chain/introduction",
+          "api/chain/blocks",
+          "api/chain/transactions",
+          "api/chain/accounts",
+          "api/chain/balances",
+          "api/chain/validators",
+          "api/chain/network",
+          "api/chain/token-metadata"
+        ]
+      },
+      {
+        "group": "Contract Source",
+        "pages": [
+          "source/overview",
+          {
+            "group": "Launchpad",
+            "pages": [
+              "source/launchpad/overview",
+              "source/launchpad/msg",
+              "source/launchpad/state",
+              "source/launchpad/contract",
+              "source/launchpad/error",
+              "source/launchpad/lib"
+            ]
+          },
+          {
+            "group": "AMM",
+            "pages": [
+              "source/amm/overview",
+              "source/amm/msg",
+              "source/amm/state",
+              "source/amm/contract",
+              "source/amm/error",
+              "source/amm/lib"
+            ]
+          },
+          {
+            "group": "Oracle",
+            "pages": [
+              "source/oracle/overview",
+              "source/oracle/msg",
+              "source/oracle/state",
+              "source/oracle/contract",
+              "source/oracle/error",
+              "source/oracle/lib"
+            ]
+          },
+          {
+            "group": "Config Registry",
+            "pages": [
+              "source/config/overview",
+              "source/config/lib"
+            ]
+          },
+          {
+            "group": "Vesting",
+            "pages": [
+              "source/vesting/overview",
+              "source/vesting/msg",
+              "source/vesting/state",
+              "source/vesting/contract",
+              "source/vesting/error",
+              "source/vesting/lib",
+              "source/vesting/tests"
+            ]
+          },
+          {
+            "group": "Name Service",
+            "pages": [
+              "source/names/overview",
+              "source/names/msg",
+              "source/names/state",
+              "source/names/contract",
+              "source/names/error",
+              "source/names/lib"
+            ]
+          },
+          {
+            "group": "Proposals",
+            "pages": [
+              "source/proposals/overview",
+              "source/proposals/msg",
+              "source/proposals/state",
+              "source/proposals/contract",
+              "source/proposals/error",
+              "source/proposals/lib"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/ansemchainfun",
+      "telegram": "https://t.me/ansemchainfun",
+      "github": "https://github.com/ansem-labs"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+---
+title: 'Sending CHANSE'
+description: 'Sign and broadcast a transfer from the CLI'
+---
+
+# Sending CHANSE
+
+`ansem send` signs a transfer with one of your wallets and broadcasts it to the chain.
+
+```bash wrap
+ansem send --to <ansem1…> --amount <n> [--from <label>] [--memo <text>]
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--to` | yes | Recipient `ansem1…` address |
+| `--amount` | yes | Amount in CHANSE (e.g. `0.25`, `100`) |
+| `--from` | if >1 wallet | Which wallet to send from (label or address). Optional when you have only one. |
+| `--memo` | no | Optional memo attached to the transaction |
+| `--json` | no | Machine-readable result |
+
+## Example
+
+```bash wrap
+ansem send --to ansem1zcuz25n78tkvmgqfn9qx9w7gz2ge0tgjyhptgy --amount 0.25 --from main
+```
+
+You'll be prompted for the wallet password, then the transaction is signed and broadcast:
+
+```
+sent 0.25 CHANSE → ansem1zcuz25n78tkvmgqfn9qx9w7gz2ge0tgjyhptgy
+tx 189BDCD27E3AF3B489CF12FCD44CC65E5C1969D6B08A6D049533AB79BC880770 @ height 278340
+```
+
+JSON output:
+
+```bash wrap
+ansem send --to ansem1zcuz… --amount 0.1 --from main --json
+```
+
+```json wrap
+{
+  "txHash": "24DA960DAAEC7A85A44C11B220734BC269AD94763F49B7BF66C20FF305400C01",
+  "height": 278341,
+  "from": "ansem1l6cmvpndal8g90ymc8nexww8rdk9tlhlq8h83r",
+  "to": "ansem1zcuz…",
+  "amount": "0.1 CHANSE"
+}
+```
+
+Gas is estimated and paid automatically in CHANSE. The command exits non-zero if the address is invalid, the amount is malformed, the password is wrong, or the broadcast fails - so it's safe to use in scripts.
+
+<Note>
+Need it non-interactive? Set `ANSEM_PASSWORD` so `send` doesn't prompt - see [Configuration](/cli/configuration).
+</Note>
