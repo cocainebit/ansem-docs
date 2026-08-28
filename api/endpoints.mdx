@@ -1,248 +1,59 @@
 ---
-title: 'API Overview'
-description: 'Access ansemchain data through multiple API interfaces'
+title: 'API Endpoints'
+description: 'The public ansemchain endpoints and their route paths'
 ---
 
-# API Overview
-
-ansemchain exposes three API interfaces for programmatic access.
-
-## Available APIs
-
-| API | Port | Protocol | Best For |
-|-----|------|----------|----------|
-| [Chain RPC](/api/rpc) | 26657 | HTTP/WebSocket | Transactions, blocks, consensus |
-| [REST API](/api/rest) | 1317 | HTTP | Browser apps, simple queries |
-| [gRPC](/api/grpc) | 9090 | HTTP/2 | High-performance, typed clients |
-
-## Endpoints by Network
-
-### Public (live chain)
-
-```
-RPC:  https://rpc.ansemchain.fun
-REST: https://rest.ansemchain.fun
-```
-
-gRPC is not exposed publicly; it is available on a node you run yourself (port 9090).
-
-### Local development
-
-```
-RPC:  http://localhost:26657
-REST: http://localhost:1317
-gRPC: localhost:9090
-```
-
-## Quick Examples
-
-### Check Node Status
-
-<CodeGroup>
-```bash curl
-curl https://rpc.ansemchain.fun/status
-```
-
-```bash REST
-curl https://rest.ansemchain.fun/cosmos/base/tendermint/v1beta1/node_info
-```
-
-```bash grpcurl
-grpcurl -plaintext localhost:9090 cosmos.base.tendermint.v1beta1.Service/GetNodeInfo
-```
-</CodeGroup>
-
-### Query Account Balance
-
-<CodeGroup>
-```bash curl (RPC)
-curl 'https://rpc.ansemchain.fun/abci_query?path="/cosmos.bank.v1beta1.Query/Balance"&data=...'
-```
-
-```bash REST
-curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1address...
-```
-
-```bash grpcurl
-grpcurl -plaintext -d '{"address":"ansem1address..."}' \
-  localhost:9090 cosmos.bank.v1beta1.Query/AllBalances
-```
-</CodeGroup>
-
-### Query Smart Contract
-
-<CodeGroup>
-```bash ansem CLI
-ansem program query ansem1contract... '{"get_count":{}}'
-```
-
-```bash REST
-curl -X GET "https://rest.ansemchain.fun/cosmwasm/wasm/v1/contract/ansem1contract.../smart/eyJnZXRfY291bnQiOnt9fQ=="
-```
-</CodeGroup>
-
-Note: The REST query data is base64-encoded JSON.
-
-## Choosing an API
-
-### Use Chain RPC when:
-
-- Broadcasting transactions
-- Subscribing to events (WebSocket)
-- Querying blocks and transactions
-- Checking consensus state
-
-### Use REST API when:
-
-- Building browser applications
-- Simple one-off queries
-- Human-readable responses
-- Quick prototyping
-
-### Use gRPC when:
-
-- Building production services
-- Need strongly-typed clients
-- High-performance requirements
-- Streaming responses
-
-## Authentication
-
-### Public Endpoints
-
-All read operations are public and don't require authentication:
-
-```bash wrap
-# No auth needed
-curl https://rest.ansemchain.fun/cosmos/bank/v1beta1/balances/ansem1...
-```
-
-### Transaction Signing
-
-Transactions must be signed client-side:
-
-```bash wrap
-# Sign with ansem CLI
-ansem tx send ansem1recipient... 1000uchanse --from alice
-
-# Or sign programmatically and broadcast via API
-curl -X POST https://rpc.ansemchain.fun/broadcast_tx_sync \
-  -d '{"tx": "base64-encoded-signed-tx"}'
-```
-
-## Rate Limits
-
-### Localnet
-
-No rate limits.
-
-### Public Nodes
-
-| Endpoint | Limit |
-|----------|-------|
-| RPC | 100 req/min |
-| REST | 100 req/min |
-| gRPC | 1000 req/min |
-
-For higher limits, run your own node.
-
-## Common Patterns
-
-### Health Check
-
-```bash wrap
-# Simple health check
-curl -f https://rpc.ansemchain.fun/health && echo "Healthy"
-```
-
-### Wait for Block
-
-```bash wrap
-#!/bin/bash
-TARGET_BLOCK=$1
-while true; do
-  CURRENT=$(curl -s https://rpc.ansemchain.fun/status | jq -r '.result.sync_info.latest_block_height')
-  if [ "$CURRENT" -ge "$TARGET_BLOCK" ]; then
-    echo "Reached block $CURRENT"
-    break
-  fi
-  sleep 1
-done
-```
-
-### Poll for Transaction
-
-```bash wrap
-#!/bin/bash
-TX_HASH=$1
-while true; do
-  RESULT=$(curl -s "https://rpc.ansemchain.fun/tx?hash=0x$TX_HASH")
-  if echo "$RESULT" | jq -e '.result' > /dev/null 2>&1; then
-    echo "Transaction confirmed"
-    echo "$RESULT" | jq '.result'
-    break
-  fi
-  sleep 1
-done
-```
-
-## WebSocket Subscriptions
-
-Subscribe to real-time events via Chain RPC:
-
-```javascript wrap
-const ws = new WebSocket('wss://rpc.ansemchain.fun/websocket');
-
-ws.onopen = () => {
-  // Subscribe to new blocks
-  ws.send(JSON.stringify({
-    jsonrpc: '2.0',
-    method: 'subscribe',
-    params: ["tm.event='NewBlock'"],
-    id: 1
-  }));
-};
-
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('New block:', data.result.data.value.block.header.height);
-};
-```
-
-## Error Handling
-
-### HTTP Status Codes
-
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 400 | Bad request (invalid parameters) |
-| 404 | Resource not found |
-| 500 | Internal server error |
-
-### Error Response Format
-
-```json wrap
-{
-  "code": 5,
-  "message": "account ansem1invalid... not found",
-  "details": []
-}
-```
-
-## SDK Libraries
-
-For production applications, use official SDK libraries:
-
-| Language | Library |
-|----------|---------|
-| JavaScript | [@cosmjs/stargate](https://github.com/cosmos/cosmjs) |
-| Python | [cosmpy](https://github.com/fetchai/cosmpy) |
-| Go | [cosmos-sdk/client](https://github.com/cosmos/cosmos-sdk) |
-| Rust | [cosmrs](https://github.com/cosmos/cosmos-rust) |
-
-## Next Steps
-
-- [Chain RPC Reference](/api/rpc)
-- [REST API Reference](/api/rest)
-- [gRPC Reference](/api/grpc)
+# API Endpoints
+
+A reference list of the public ansemchain endpoints. This page lists what is
+available. Detailed usage guides are not published yet.
+
+## Base URLs
+
+| Endpoint | URL | What it is |
+|----------|-----|------------|
+| Chain RPC (CometBFT) | `https://rpc.ansemchain.fun` | Consensus RPC for blocks, transactions, and broadcasting |
+| REST / LCD | `https://rest.ansemchain.fun` | Cosmos SDK REST interface for chain state |
+| Launchpad API | `https://api.ansemchain.fun` | Pre-indexed data for launchpad tokens, trades, and prices |
+
+gRPC is not exposed publicly. It runs on port 9090 of a node you run yourself.
+
+For local development the same interfaces run at `http://localhost:26657` (RPC),
+`http://localhost:1317` (REST), and `localhost:9090` (gRPC).
+
+## REST / LCD route families
+
+Base: `https://rest.ansemchain.fun`
+
+| Route | What it is |
+|-------|------------|
+| `/cosmos/base/tendermint/v1beta1/node_info` | Node and network info |
+| `/cosmos/base/tendermint/v1beta1/blocks/latest` | Latest block |
+| `/cosmos/base/tendermint/v1beta1/blocks/{height}` | Block at a height |
+| `/cosmos/tx/v1beta1/txs/{hash}` | Transaction by hash |
+| `/cosmos/auth/v1beta1/accounts/{address}` | Account details |
+| `/cosmos/bank/v1beta1/balances/{address}` | Account balances |
+| `/cosmos/bank/v1beta1/supply` | Total supply |
+| `/cosmos/bank/v1beta1/denoms_metadata` | Token metadata |
+| `/cosmos/staking/v1beta1/validators` | Validator set |
+| `/cosmos/staking/v1beta1/pool` | Staking pool totals |
+| `/cosmos/gov/v1/params/voting` | Governance voting parameters |
+| `/cosmwasm/wasm/v1/contract/{address}/smart/{query}` | Smart contract query |
+
+## Launchpad API routes
+
+Base: `https://api.ansemchain.fun`
+
+| Route | What it is |
+|-------|------------|
+| `GET /api/health` | Service health check |
+| `GET /api/tokens` | List launchpad tokens |
+| `GET /api/tokens/:address` | Single token detail |
+| `GET /api/candles/:address` | OHLCV candlestick data for a token |
+| `GET /api/trades/recent` | Recent trades |
+| `GET /api/sse/feed` | Real-time trade feed (Server-Sent Events) |
+| `GET /api/wallet/balance` | Wallet native balance |
+| `GET /api/wallet/tokens` | Wallet token holdings |
+| `GET /api/wallet/prices` | Prices for a wallet's tokens |
+| `GET /api/wallet/transactions` | Wallet transaction history |
+| `POST /api/wallet/broadcast` | Broadcast a signed transaction |
