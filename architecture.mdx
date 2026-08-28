@@ -76,14 +76,14 @@ The Launchpad is a CosmWasm contract that lets anyone create a new token with a 
 
 ### Token Supply Distribution
 
-Each token launches with a fixed 100M supply, split between the bonding curve and AMM liquidity:
+Each token launches with a fixed total supply of 100,000, split between the bonding curve and AMM liquidity:
 
 | Allocation | Amount | Purpose |
 |-----------|--------|---------|
-| Tokens on curve | ~79.31M | Available for buyers during bonding phase |
-| Tokens for LP | ~20.69M | Reserved for the AMM pool at graduation |
+| Tokens on curve | 79,310 | Available for buyers during bonding phase |
+| Tokens for LP | 20,690 | Reserved for the AMM pool at graduation |
 
-These are dynamically computed from the oracle CHANSE/USD price and configured USD targets when each token is created.
+This split is a fixed constant (`TOKENS_ON_CURVE` / `TOKENS_FOR_LP`): 79.31% on the curve, 20.69% for LP, identical for every token. The oracle CHANSE/USD price sets the graduation raise, not the token split.
 
 ### Bonding Curve Math
 
@@ -120,7 +120,7 @@ ansem_out   = ansem_gross - fee
 |-----|------|---------|
 | Token creation | 80,000 CHANSE | Fixed fee, becomes initial curve reserves |
 | Buy fee | 0.5% (50 bps) | Deducted from CHANSE input before curve math |
-| Sell fee | 2.5% (250 bps) | Deducted from CHANSE output after curve math |
+| Sell fee | 3.5% (350 bps) | Deducted from CHANSE output after curve math |
 
 All fees stay in the curve's CHANSE reserves, which means fees accelerate progress toward graduation. At graduation, all accumulated reserves (including fees) flow into the AMM pool.
 
@@ -168,7 +168,7 @@ When a token graduates:
 | Asset | Amount |
 |-------|--------|
 | CHANSE | All curve reserves (~graduation threshold) |
-| Token | All unsold tokens from the curve (~20.69M) |
+| Token | All unsold tokens from the curve (~20,690) |
 
 ### Swap Math
 
@@ -219,7 +219,7 @@ The full lifecycle of a token from creation through trading:
 1. Creator pays 80K CHANSE → Launchpad creates CW20 token + bonding curve
                                 │
 2. Users buy/sell on curve      │  price rises as supply decreases
-   (0.5% buy fee, 2.5% sell)   │  fees accumulate in CHANSE reserves
+   (0.5% buy fee, 3.5% sell)   │  fees accumulate in CHANSE reserves
                                 │
 3. CHANSE reserves hit threshold ──┘
                                 │

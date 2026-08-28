@@ -1,0 +1,75 @@
+---
+title: 'Horns for Creators'
+description: 'How to attach a Horn to your launch so it takes effect at graduation'
+---
+
+# Horns for Creators
+
+A Horn is chosen when you **create** a token and attached the instant it **graduates**. You make one decision at launch: whether to route a reward skim to stakers, and whether to bolt on any per-pool Horns. Everything after that happens automatically at graduation.
+
+<Warning>
+**The choice is permanent.** A pool's hook is immutable at creation. Whatever you pick is baked in and attached at graduation, and it can never be added, removed, or changed afterward. Pick deliberately.
+</Warning>
+
+## What you choose
+
+Your Horn selection is three fields on the launch, carried through to graduation:
+
+| Field | What it sets | Default |
+|---|---|---|
+| `skim_bps` | Fraction of each swap's **fee** routed to the reward layer (Fee-Share to Vault), in bps of the fee | Protocol default (2000 = 20% of the fee) |
+| `ansem_bps` | Share of your token's skim that goes to the ANSEM sink; the rest goes to the CHANSE sink | 50/50 |
+| `composite_horns` | Extra Horns to attach, by registry slug (for example `["decay"]` or `["decay","dynfee"]`) | None |
+
+Setting `skim_bps` to `0` means your token takes **no** reward skim even if a global Fee-Share Horn is wired; the whole fee compounds in your pool as it would on a hookless launch.
+
+## The default path
+
+If you do nothing, your token graduates with whatever reward wiring the protocol has set globally (`HornConfig`): Fee-Share routing the default skim into the Vault, split 50/50. That is the sensible default: your traders' fees quietly reward ANSEM and CHANSE stakers, and your pool otherwise trades like a normal AMM pool.
+
+## Attaching a per-pool Horn
+
+To add behavior like a decaying launch fee, list the Horn's registry slug in `composite_horns`. At graduation the launchpad resolves each slug to its deployed address through the `HornRegistry` and wires it into the pool.
+
+<Steps>
+
+### Pick your Horns from the catalog
+
+Choose from the [catalog](/horns/catalog), for example `decay` for a decaying launch fee or `dynfee` for a condition-reactive fee. Reference the live set; unregistered slugs are simply skipped.
+
+### List their slugs at launch
+
+Put the slugs in `composite_horns`. Up to **4** distinct Horns are allowed per token, each slug up to 32 characters.
+
+### Graduate
+
+At graduation the launchpad reads `HornRegistry`, resolves each slug to its address, and attaches the pool's hook. If you listed more than one Horn, or a Horn alongside the reward skim, the [Composite Router](/horns/catalog#composite-router) is attached as the single pool hook and fans out to each child.
+
+</Steps>
+
+<Note>
+An unregistered or not-yet-deployed slug is dropped, not fatal. Graduation can never brick on a Horn that is not live yet; the pool simply graduates without that Horn.
+</Note>
+
+## Running more than one Horn
+
+You can combine Horns, for example a Fee Decay launch fee **and** the reward skim to the Vault. When a token attaches more than one Horn, the [Composite Router](/horns/catalog#composite-router) becomes the pool's single hook and runs the children under strict rules:
+
+- Any child that returns **Reject** wins; the swap is rejected
+- At most **one** child may return a price **Delta**
+- **Conflicting fee overrides are rejected** outright
+
+This keeps a multi-Horn pool deterministic and safe. You do not wire the router yourself; listing more than one Horn triggers it automatically.
+
+## Addresses are resolved at runtime
+
+You never paste a Horn's contract address. Slugs resolve to deployed addresses through the launchpad's `HornRegistry`, and the reward wiring comes from `HornConfig`. The app reads both live, so your launch keeps working across genesis changes and address rotations.
+
+<CardGroup cols={2}>
+  <Card title="Full catalog" icon="list" href="/horns/catalog">
+    Browse every Horn and its slug
+  </Card>
+  <Card title="Create a token" icon="rocket" href="/launchpad/create-token">
+    The launch flow your Horn choice rides on
+  </Card>
+</CardGroup>

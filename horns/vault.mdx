@@ -1,0 +1,77 @@
+---
+title: 'Horn Vault'
+description: 'Stake ANSEM or CHANSE and earn the fee skim from every graduated pool'
+---
+
+# Horn Vault
+
+The Horn Vault is the reward keystone of the Horns system. It is a MasterChef-style staking contract with **two global sinks**: one for ANSEM stakers and one for CHANSE stakers. Every graduated pool that carries a reward Horn skims a slice of its swap fees into these sinks, and stakers earn a per-share cut that accrues each block.
+
+Stake once and you earn from the whole ecosystem's trading, not just one coin. You do not pick a pool; the skim from every Horn-carrying pool flows into the same two sinks.
+
+## How rewards flow
+
+<Steps>
+
+### A trade happens on a graduated pool
+
+The pool takes its usual swap fee. If the pool carries a reward Horn, a fraction of that fee (the pool's `skim_bps`, default 20% of the fee) is diverted out.
+
+### Fee-Share splits the skim
+
+The [Fee-Share Horn](/horns/catalog#fee-share) catches the skim and routes it into the two sinks by the pool's configured ratio (default 50/50 between ANSEM and CHANSE).
+
+### The sinks accrue per share
+
+Each sink tracks an accrue-per-share accumulator. Every deposit raises the reward owed to everyone currently staked in that sink, proportional to their stake.
+
+### You claim, unstake, or both
+
+Your share accrues every block while your stake sits. You can `Claim` the accumulated rewards without touching your principal, or `Unstake` to pull principal and rewards together.
+
+</Steps>
+
+## Staking
+
+The Vault exposes three actions:
+
+| Action | Message | Effect |
+|---|---|---|
+| Stake | `Stake {}` | Stake the native coins attached to the message. Exactly one denom per stake, either ANSEM or CHANSE. |
+| Unstake | `Unstake { denom, amount }` | Return `amount` of principal from a sink. Harvests owed rewards first. |
+| Claim | `Claim { denom }` | Harvest accrued rewards from a sink without moving principal. |
+
+Staking is **permissionless**: anyone can deposit into either sink. Rewards are tracked with a 1e18-precision accumulator in 256-bit math, so dust never strands.
+
+<Note>
+The set of reward denominations paid out is capped. The harvest loop that runs inside `Stake`, `Unstake`, and `Claim` walks that set, so bounding it keeps the loop cheap and guarantees `Unstake` can never gas-brick and freeze your principal.
+</Note>
+
+## Stake cooldown
+
+The Vault has an optional `min_stake_seconds` cooldown. When set to a positive value, a stake must age that long before it becomes eligible to `Unstake` or `Claim`. When 0 (the default), there is no cooldown.
+
+The cooldown is the real defense against just-in-time farming: staking right before a big swap, grabbing its skim, then unstaking. With a cooldown in place, a drive-by staker is not eligible to harvest before they would want to leave.
+
+## Querying your position
+
+Read a staker's position in a sink:
+
+```json wrap
+{ "stake": { "denom": "uchanse", "staker": "<your_address>" } }
+```
+
+Returns the staked amount, the rewards accrued so far, and (if a cooldown is set) when the stake becomes eligible.
+
+## Safety
+
+The Vault is deliberately isolated from the trade path. Fee-Share deposits into it as a reply-on-error sub-message, so if the Vault is ever paused or reverts, **the underlying swap still completes** and the skim is held safely for a later flush. A broken Vault degrades rewards; it never breaks trading.
+
+<CardGroup cols={2}>
+  <Card title="Fee Horns" icon="percent" href="/horns/fee-horns">
+    The per-pool fee behavior that feeds the skim
+  </Card>
+  <Card title="Full catalog" icon="list" href="/horns/catalog">
+    Fee-Share, Gauge, and every other Horn
+  </Card>
+</CardGroup>

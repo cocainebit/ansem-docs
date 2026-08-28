@@ -1,0 +1,63 @@
+---
+title: 'Fee Horns'
+description: 'Fee Decay and Dynamic Fee: Horns that adjust a pool swap fee at trade time'
+---
+
+# Fee Horns
+
+Two of the live Horns on ansem-1 change a pool's swap fee per trade instead of leaving it flat. Both work through the AMM's `before_swap` hook, returning an **OverrideFee** decision, and both are clamped to a hard maximum so a misconfiguration can never brick trading.
+
+A creator attaches one at launch; it takes effect the moment the token graduates. See [For creators](/horns/for-creators) for how to attach one.
+
+## Fee Decay
+
+**Launch fee starts high and decays down.** Fee Decay starts a pool at an elevated fee right after graduation and ramps it toward the base rate over a set window. Snipers who rush the first blocks pay the most; the fee settles to normal for everyone who follows.
+
+- A time or block based fee ramp from a launch high down to the base fee
+- Front-runs the front-runners without leaving a permanent tax on the pool
+
+<Note>
+**Example.** A coin graduates. For the first hour the fee starts high, say 5%, and decays toward the 0.3% base. A sniper buying in the first block pays the full 5%; someone who buys an hour later pays the normal 0.3%.
+</Note>
+
+## Dynamic Fee
+
+**Adjusts the swap fee to conditions.** Dynamic Fee overrides the pool fee per swap based on trade conditions rather than a flat rate: a higher fee for the moves you want to price for, a lower fee for the flow you want to attract. The override is always clamped to a hard maximum (`MAX_HOOK_FEE_BPS`), so it can never cross the cap.
+
+- Per-swap fee override through the `before_swap` hook
+- Hard-capped so a bad config can never make trading impossible
+
+<Note>
+**Example.** Volatility spikes and heavy one-sided sell flow hits the pool. For that flow, Dynamic Fee raises the swap fee from, say, 0.3% up toward 0.9% to price the risk, then eases it back down as conditions calm, never crossing the hard fee cap.
+</Note>
+
+## How the override is bounded
+
+<Steps>
+
+### The AMM asks the Horn before the swap
+
+`before_swap` is a query. The Fee Horn returns an `OverrideFee` decision carrying the fee it wants for this trade.
+
+### The fee is clamped
+
+The override is capped at `MAX_HOOK_FEE_BPS`. A Horn that returns a runaway value is silently clamped down to the cap, so trading never becomes prohibitively expensive.
+
+### The swap runs at the effective fee
+
+The clamped fee is applied to this swap. The next swap is priced fresh; the fee is decided per trade, not stored as pool state.
+
+</Steps>
+
+## Combining a Fee Horn with rewards
+
+A pool can run a Fee Horn **and** route the reward skim to the Vault at the same time. That combination is wired by the [Composite Router](/horns/catalog#composite-router), which runs both Horns under strict rules (at most one price Delta, no conflicting fee overrides). A creator just lists both at launch; the router is attached automatically. See [For creators](/horns/for-creators#running-more-than-one-horn).
+
+<CardGroup cols={2}>
+  <Card title="Full catalog" icon="list" href="/horns/catalog">
+    Every fee, pricing, and gating Horn
+  </Card>
+  <Card title="For creators" icon="rocket" href="/horns/for-creators">
+    Attach a Fee Horn to your launch
+  </Card>
+</CardGroup>

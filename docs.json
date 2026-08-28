@@ -85,6 +85,16 @@
         ]
       },
       {
+        "group": "Horns",
+        "pages": [
+          "horns/overview",
+          "horns/vault",
+          "horns/fee-horns",
+          "horns/catalog",
+          "horns/for-creators"
+        ]
+      },
+      {
         "group": "Bridge",
         "pages": [
           "bridge/overview",
@@ -147,6 +157,7 @@
         "group": "Smart Contracts",
         "pages": [
           "contracts/overview",
+          "contracts/deployed",
           "contracts/scaffolding",
           "contracts/building",
           "contracts/deploying",
@@ -174,6 +185,27 @@
           "api/chain/validators",
           "api/chain/network",
           "api/chain/token-metadata"
+        ]
+      },
+      {
+        "group": "Launchpad API",
+        "pages": [
+          "api/launchpad/introduction",
+          "api/launchpad/list-tokens",
+          "api/launchpad/token-detail",
+          "api/launchpad/candles",
+          "api/launchpad/trades",
+          "api/launchpad/sse",
+          "api/launchpad/wallet"
+        ]
+      },
+      {
+        "group": "API",
+        "pages": [
+          "api/endpoints",
+          "api/rpc",
+          "api/rest",
+          "api/grpc"
         ]
       },
       {

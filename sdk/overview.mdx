@@ -97,6 +97,10 @@ const client = await createClient({
 
 CHANSE uses 6 decimals. The SDK provides helpers for conversion:
 
+<Note>
+The `sendAnsem`, `formatAnsem`, and `parseAnsem` helpers all operate on the native CHANSE denom (`uchanse`) despite the `Ansem` in their names. The code prefix is an intentional holdover and does not refer to a separate ANSEM asset.
+</Note>
+
 ```typescript wrap
 import { formatAnsem, parseAnsem, ANSEM_DECIMALS, ANSEM_DENOM } from "@ansem-chain/sdk";
 

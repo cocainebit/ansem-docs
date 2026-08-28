@@ -1,0 +1,78 @@
+---
+title: 'Horns Overview'
+description: 'v4-style hooks that attach to a graduated pool to reward stakers or reshape how it trades'
+---
+
+# Horns
+
+Horns are the hook layer on the ANSEM AMM. They are the ansemchain take on Uniswap v4 hooks: small contracts that bolt onto a graduated pool and run at swap time. When a token graduates from the [bonding curve](/launchpad/graduation) into the [AMM](/amm/overview), a Horn can be attached to its pool. From then on the Horn gets a say on every swap.
+
+A Horn does one of two things:
+
+1. **Skims rewards.** It diverts a slice of every swap's fee into the **Horn Vault**, where ANSEM and CHANSE stakers earn it.
+2. **Reshapes the pool.** It changes how the pool prices, gates, or fills trades, for example a launch fee that starts high and decays down.
+
+## The two families
+
+<CardGroup cols={2}>
+  <Card title="Reward layer" icon="coins" href="/horns/vault">
+    Fee-Share routes each swap's skim into the Horn Vault. Stake ANSEM or CHANSE and earn the skim from every graduated pool.
+  </Card>
+  <Card title="Fee and pricing Horns" icon="sliders" href="/horns/fee-horns">
+    Per-pool behavior a creator bolts on at launch: Fee Decay, Dynamic Fee, and the wider catalog of pricing and gating Horns.
+  </Card>
+</CardGroup>
+
+## How a Horn plugs in
+
+The AMM asks the attached Horn `before_swap` and gets back one decision: **Proceed**, **Reject**, **OverrideFee**, or **Delta** (a price adjustment). It runs the swap, then calls the Horn `after_swap`. Two safety properties hold across every Horn:
+
+- Any `Delta` a Horn returns is re-validated against live pool reserves by the AMM itself. This is the systemic backstop: **no Horn can drain a pool**, no matter what it returns.
+- The reward-layer deposit rides as a reply-on-error sub-message, so a paused or broken Vault can never revert the underlying swap.
+
+## Economics of the skim
+
+The reward skim is a fraction **of the swap fee**, not of the trade. It is set in basis points of the fee:
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `skim_bps` | 2000 (20% of the fee) | Share of each swap's fee routed to the reward layer |
+| Split | 5000 / 5000 (50/50) | How the skim divides between the ANSEM sink and the CHANSE sink |
+
+Both are creator-set at launch and governable afterward. The remaining fee stays in the pool and compounds for liquidity providers exactly as it does on a hookless pool. See [Fee structure](/amm/overview#fee-structure) for the base swap fee the skim is taken from.
+
+## Honest caveats
+
+<Warning>
+**A pool's hook is immutable at creation.** A Horn is chosen at launch and attached the instant the token graduates. It can never be added, removed, or swapped afterward. Only coins that graduate **after** the Horns were wired on ansem-1 carry a Horn; pools that graduated earlier stay hookless forever.
+</Warning>
+
+<Note>
+Horn contract addresses change per genesis and are never hardcoded here. The launchpad and the app resolve them at runtime through the launchpad's `HornConfig` and `HornRegistry` queries. Always read the live wiring rather than assuming an address.
+</Note>
+
+## What is live on ansem-1
+
+As of 2026-08-28, the in-place migration on ansem-1 made the AMM hook-aware and the launchpad Horn-aware. Live and wired:
+
+- **Horn Vault** (staking, two sinks)
+- **Fee-Share** (routes the skim into the Vault)
+- **Fee Decay** (decaying launch fee)
+- **Dynamic Fee** (condition-reactive fee)
+
+The wider catalog of pricing and gating Horns becomes attachable as governance registers each one in the `HornRegistry`. See the [full catalog](/horns/catalog).
+
+<CardGroup cols={2}>
+  <Card title="Horn Vault" icon="vault" href="/horns/vault">
+    Stake to earn every pool's skim
+  </Card>
+  <Card title="Fee Horns" icon="percent" href="/horns/fee-horns">
+    Fee Decay and Dynamic Fee
+  </Card>
+  <Card title="Full catalog" icon="list" href="/horns/catalog">
+    Every Horn, what it does, and an example
+  </Card>
+  <Card title="For creators" icon="rocket" href="/horns/for-creators">
+    Attach a Horn to your launch
+  </Card>
+</CardGroup>
