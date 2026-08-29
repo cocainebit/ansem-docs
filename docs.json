@@ -95,6 +95,14 @@
         ]
       },
       {
+        "group": "SocialFi",
+        "pages": [
+          "social/overview",
+          "social/stack",
+          "social/roadmap"
+        ]
+      },
+      {
         "group": "Bridge",
         "pages": [
           "bridge/overview",

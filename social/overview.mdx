@@ -1,0 +1,41 @@
+---
+title: 'SocialFi'
+description: 'Wallet-signed social on ansemchain: your identity is your address, and every post is cryptographically yours'
+---
+
+# SocialFi
+
+Social on ansemchain is built on one idea: **your identity is your wallet**. There are no usernames to squat, no accounts to create, and no server that can post as you. Every action, a post, a reply, a like, a repost, is signed by your wallet, and the signature is what proves authorship. The account you trade and hold with is the same account you post from.
+
+This is what makes it *SocialFi* rather than social bolted onto a chain: the same address that owns your bags carries your posts, your reputation, and your reach.
+
+## What you can do today
+
+<CardGroup cols={2}>
+  <Card title="Post" icon="pen-nib">
+    Share text, an inline image, a token preview, or a quote of another post. Every post is signed by your address.
+  </Card>
+  <Card title="Reply & thread" icon="reply">
+    Reply to any post. Threads are attributed the same way, all the way down.
+  </Card>
+  <Card title="Like & repost" icon="heart">
+    Signed, toggleable engagement. Likes and reposts are bound to your address, not a session cookie.
+  </Card>
+  <Card title="Follow" icon="user-plus">
+    Build a graph. Follow and unfollow other addresses to shape your feed.
+  </Card>
+  <Card title="Profiles" icon="id-badge">
+    Claim a handle, set a display name, bio, avatar, banner, and links, all signed by you.
+  </Card>
+  <Card title="Token comments" icon="comments">
+    Every launchpad token has its own comment thread, tied to the same signed identity.
+  </Card>
+</CardGroup>
+
+## Why signed, not stored
+
+On most apps, "you posted this" means "our database says you did." Here it means **the network can check the math**: each action carries a signature over its exact content, and the address is derived from the signing key, so authorship cannot be forged, reassigned, or edited after the fact by anyone, including the app.
+
+Gas never gets in the way. A relayer sponsors the transaction, so posting costs you nothing and needs no CHANSE in your wallet, yet the relayer can only *carry* a message you already signed. It can never author one for you.
+
+Read [The social stack](/social/stack) for how the on-chain contract and the signing schemes fit together, or [What's next](/social/roadmap) for where this is heading.

@@ -1,0 +1,47 @@
+---
+title: 'The social stack'
+description: 'How ansemchain SocialFi works: the on-chain post contract, the signed off-chain layer, and the two signing schemes'
+---
+
+# The social stack
+
+SocialFi on ansemchain has two layers that share one identity model. Both verify a wallet signature over the exact content of every action; they differ in *where the result lives*.
+
+## On-chain: the `ansem-social` contract
+
+Posts, replies, likes, and reposts are recorded by a CosmWasm contract that verifies each action's signature **on-chain** before it stores anything. The design goal is that authorship comes from the signature, not from the transaction sender, so a gas-sponsoring relayer can submit on a user's behalf without ever being able to forge or alter authorship.
+
+Each action binds a canonical message so a signature can never be reused for different content:
+
+```text
+ansem social: {kind}:{subject}
+ts: {timestamp}
+{text}
+```
+
+- `kind` is `post`, `reply`, `like`, or `repost`
+- `subject` is the target post id (for reply / like / repost), empty for a top-level post
+- `text` is the content (empty for a like or repost)
+
+The contract reconstructs that message, verifies the signature, and then binds authorship by deriving the address from the pubkey and requiring it to equal the claimed author. Likes and reposts are idempotent toggles keyed by `(post, address)`; replies are indexed under their parent.
+
+<Note>
+**Two signing schemes, one contract.** Wallets that expose `signArbitrary` sign the ADR-36 amino document (Keplr, Leap). The ANSEM wallet exposes only `signDirect`, so it signs a `SignDoc` that carries the canonical message in its transaction memo; the contract rebuilds the exact sign bytes and requires that memo to match. Either way the same author binding holds, so **every ansemchain wallet can post on-chain.**
+</Note>
+
+## The signed off-chain layer
+
+Some things do not belong in post storage: your profile, your follow graph, a token's comment thread, and inline media. These are handled by a signed off-chain service today. It uses the **same** identity rule, every write carries a wallet signature the server verifies, so a profile edit or a follow is just as attributable as an on-chain post; it simply is not (yet) a contract call.
+
+| Handled on-chain | Handled by the signed off-chain layer |
+| --- | --- |
+| Posts and replies | Profiles (handle, bio, avatar, banner, links) |
+| Likes and reposts | Follow / unfollow graph |
+| | Token comment threads |
+| | Inline images and quotes |
+
+## The identity primitive
+
+Both layers reduce to the same primitive: **a message, a signature, and an address derived from the signing key.** That is the whole trust model. It is why nothing here needs an account system, why a relayer can pay gas without gaining authorship, and why the line between "off-chain today" and "on-chain tomorrow" is just *where the verified record is written*, not *whether it can be trusted*.
+
+See [What's next](/social/roadmap) for what moves on-chain from here.
